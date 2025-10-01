@@ -1,0 +1,33 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    container_name: mobile_app_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: mobileuser
+      POSTGRES_PASSWORD: mobilepass
+      POSTGRES_DB: mobileappdb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  nestjs:
+    build: .
+    container_name: mobile_app_backend
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: mobileuser
+      DATABASE_PASSWORD: mobilepass
+      DATABASE_NAME: mobileappdb
+      JWT_SECRET: my-secret
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:
