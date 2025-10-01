@@ -22,6 +22,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = typeof res === 'string' ? res : res.message;
     }
 
+    console.error('🔥 Exception caught:', exception);
+
     response.status(status).json({
       statusCode: status,
       success: false,
