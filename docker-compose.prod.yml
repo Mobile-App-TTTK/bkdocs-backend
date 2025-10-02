@@ -1,16 +1,14 @@
-version: "3.8"
-
 services:
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: ${DATABASE_USER}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-      POSTGRES_DB: ${DATABASE_NAME}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    networks:
-      - mobile-net
+  # postgres:
+  #   image: postgres:15
+  #   environment:
+  #     POSTGRES_USER: ${DATABASE_USER}
+  #     POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+  #     POSTGRES_DB: ${DATABASE_NAME}
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+  #   networks:
+  #     - mobile-net   # 👈 gán vào mạng riêng
 
   nestjs:
     image: 528192012668.dkr.ecr.ap-southeast-1.amazonaws.com/mobile-app-backend:latest
@@ -21,16 +19,11 @@ services:
     depends_on:
       - postgres
     networks:
-      - mobile-net
-    deploy:
-      resources:
-        limits:
-          memory: 512M   # Giới hạn RAM tối đa 512MB
-          cpus: "0.50"   # Chỉ dùng tối đa nửa CPU
+      - mobile-net   # 👈 cùng mạng với postgres
 
 volumes:
   pgdata:
 
 networks:
-  mobile-net:
+  mobile-net:       # 👈 network kiểu bridge
     driver: bridge

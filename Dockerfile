@@ -27,15 +27,13 @@ WORKDIR /usr/src/app
 # Copy package.json và lockfile
 COPY package*.json ./
 
-# Chỉ cài dependency production
-RUN npm ci --only=production --legacy-peer-deps --prefer-offline
+# Cài dependencies production
+RUN npm ci --only=production --legacy-peer-deps
 
 # Copy dist đã build từ stage 1
 COPY --from=builder /usr/src/app/dist ./dist
 
-# 👇 Giảm memory Node.js để tránh OOM
-ENV NODE_OPTIONS="--max-old-space-size=256"
-
+# Expose port 8080 (match docker-compose)
 EXPOSE 8080
 
 # Start app
