@@ -1,25 +1,31 @@
-  version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - mobile-net   # 👈 gán vào mạng riêng
 
-  services:
-    postgres:
-      image: postgres:15
-      restart: always
-      environment:
-        POSTGRES_USER: ${DATABASE_USER}
-        POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-        POSTGRES_DB: ${DATABASE_NAME}
-      volumes:
-        - pgdata:/var/lib/postgresql/data
+  nestjs:
+    image: ${ECR_REPOSITORY}:latest
+    restart: always
+    env_file:
+      - .env.prod
+    ports:
+      - "80:8080"
+    depends_on:
+      - postgres
+    networks:
+      - mobile-net   # 👈 cùng mạng với postgres
 
-    nestjs:
-      image: <AWS_ECR_REPO_URL>:latest
-      restart: always
-      env_file:
-        - .env.prod
-      ports:
-        - "80:8080"
-      depends_on:
-        - postgres
+volumes:
+  pgdata:
 
-  volumes:
-    pgdata:
+networks:
+  mobile-net:       # 👈 network kiểu bridge
+    driver: bridge
