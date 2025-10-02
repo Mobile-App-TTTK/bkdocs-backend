@@ -1,7 +1,7 @@
 name: CI/CD Pipeline
 
 on:
-  workflow_dispatch:
+  push:
     branches:
       - main
 
@@ -23,18 +23,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Create .env.prod
-        run: |
-          echo "NODE_ENV=test" > .env.test
-          echo "DATABASE_HOST=localhost" >> .env.test
-          echo "DATABASE_PORT=5432" >> .env.test
-          echo "DATABASE_USER=mobileuser" >> .env.test
-          echo "DATABASE_PASSWORD=mobilepass" >> .env.test
-          echo "DATABASE_NAME=mobileappdb" >> .env.test
-          echo "JWT_SECRET=test-secret" >> .env.test
       - name: Start Postgres (Docker Compose)
         run: |
-          docker compose --env-file .env.test up -d
+          docker compose up -d
           sleep 10
           npm run migration:run
 
