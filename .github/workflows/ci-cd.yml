@@ -37,6 +37,7 @@ jobs:
   # ========================
   docker_build_and_push:
     runs-on: ubuntu-latest
+    environment: production 
     needs: build_and_test
     steps:
       - name: Checkout source
