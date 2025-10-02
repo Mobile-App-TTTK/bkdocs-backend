@@ -59,6 +59,11 @@ jobs:
           IMAGE_TAG=latest
           docker build -t ${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG .
 
+      - name: Verify dist/main.js exists in image
+        run: |
+          IMAGE_TAG=latest
+          docker run --rm ${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG ls -R dist || (echo "❌ dist not found in image" && exit 1)
+
       - name: Push to ECR
         run: |
           IMAGE_TAG=latest
@@ -115,7 +120,11 @@ jobs:
               sudo apt-get update && sudo apt-get install -y docker-compose-plugin
             fi
 
-            sudo systemctl start docker
+            # Ensure Docker daemon is running
+            if ! pgrep dockerd > /dev/null; then
+              echo "Starting Docker..."
+              sudo systemctl start docker
+            fi
             sudo systemctl enable docker
 
             # Export AWS credentials
@@ -126,17 +135,11 @@ jobs:
             # Login ECR
             aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin ${{ secrets.ECR_REPOSITORY }}
 
-            # Remove old containers (không giữ bản cũ)
-            docker compose --env-file .env.prod -f docker-compose.prod.yml down
-
-            # Remove all dangling images (giữ lại duy nhất postgres + latest backend)
-            docker image prune -af --filter "label!=postgres"
-
-            # Pull image mới nhất
-            docker compose --env-file .env.prod -f docker-compose.prod.yml pull
+            # Pull image mới
+            docker compose --env-file .env.prod -f docker-compose.prod.yml pull 
 
             # Start container backend + postgres
             docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
 
-            # Run migrations trong backend
+            # Run migrations
             docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T nestjs npm run migration:run:prod
