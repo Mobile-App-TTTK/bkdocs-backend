@@ -111,9 +111,9 @@ jobs:
             echo "${{ secrets.ENV_PROD_FILE }}" > .env.prod
 
             # Copy file docker-compose.prod.yml nếu chưa có
-            if [ ! -f docker-compose.prod.yml ]; then
-              echo "${{ secrets.DOCKER_COMPOSE_PROD }}" > docker-compose.prod.yml
-            fi
+            # if [ ! -f docker-compose.prod.yml ]; then
+            #   echo "${{ secrets.DOCKER_COMPOSE_PROD }}" > docker-compose.prod.yml
+            # fi
 
             # Pull image mới
             docker compose --env-file .env.prod -f docker-compose.prod.yml pull 
