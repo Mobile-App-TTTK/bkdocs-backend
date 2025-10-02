@@ -75,7 +75,6 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v3
 
-      # Copy docker-compose.prod.yml lên server
       - name: Copy docker-compose.prod.yml
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -85,10 +84,8 @@ jobs:
           source: "docker-compose.prod.yml"
           target: "~/mobile-app/"
 
-      # Copy .env.prod lên server (tạo từ secret)
       - name: Copy .env.prod
-        run: |
-          echo "${{ secrets.ENV_PROD_FILE }}" > .env.prod
+        run: echo "${{ secrets.ENV_PROD_FILE }}" > .env.prod
         shell: bash
 
       - name: Upload .env.prod to EC2
@@ -100,7 +97,6 @@ jobs:
           source: ".env.prod"
           target: "~/mobile-app/"
 
-      # Deploy bằng SSH
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v0.1.7
         with:
@@ -110,19 +106,35 @@ jobs:
           script: |
             cd ~/mobile-app
 
-            # Export AWS credentials để login vào ECR
+            # Ensure Docker & Docker Compose installed
+            if ! command -v docker &> /dev/null; then
+              curl -fsSL https://get.docker.com | sh
+              sudo usermod -aG docker ubuntu
+            fi
+            if ! command -v docker compose &> /dev/null; then
+              sudo apt-get update && sudo apt-get install -y docker-compose-plugin
+            fi
+
+            # Ensure Docker daemon is running
+            if ! pgrep dockerd > /dev/null; then
+              echo "Starting Docker..."
+              sudo systemctl start docker
+            fi
+            sudo systemctl enable docker
+
+            # Export AWS credentials từ GitHub Secrets
             export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
             export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
             export AWS_DEFAULT_REGION=ap-southeast-1
 
             # Login ECR
             aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin ${{ secrets.ECR_REPOSITORY }}
-            
+
             # Pull image mới
             docker compose --env-file .env.prod -f docker-compose.prod.yml pull 
 
             # Start container backend + postgres
             docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
 
-            # Chạy migration trong container NestJS
+            # Run migrations
             docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T nestjs npm run migration:run
