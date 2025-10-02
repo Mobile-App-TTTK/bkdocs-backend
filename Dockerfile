@@ -1,36 +1,40 @@
-# Stage 1: build NestJS app
+# =========================
+# Stage 1: Build NestJS app
+# =========================
 FROM node:18-alpine AS builder
 
 WORKDIR /usr/src/app
 
-# copy package.json và package-lock.json
+# Copy package.json và package-lock.json trước (để cache npm install)
 COPY package*.json ./
 
-# cài dependencies (bao gồm dev)
-RUN npm install --legacy-peer-deps
+# Cài dependencies đầy đủ (dev + prod) để build
+RUN npm ci --legacy-peer-deps
 
-# copy toàn bộ source
+# Copy toàn bộ source
 COPY . .
 
-# build app (tạo dist/)
+# Build NestJS (tạo dist/)
 RUN npm run build
 
-# Stage 2: run app
+# =========================
+# Stage 2: Run NestJS app
+# =========================
 FROM node:18-alpine
 
 WORKDIR /usr/src/app
 
-# copy package.json
+# Copy package.json và lockfile
 COPY package*.json ./
 
-# chỉ cài dependency production
-RUN npm install --only=production --legacy-peer-deps
+# Cài dependencies production
+RUN npm ci --only=production --legacy-peer-deps
 
-# copy code đã build từ stage 1
+# Copy dist đã build từ stage 1
 COPY --from=builder /usr/src/app/dist ./dist
 
-# expose port 8080 (match với docker-compose)
+# Expose port 8080 (match docker-compose)
 EXPOSE 8080
 
-# run app
+# Start app
 CMD ["node", "dist/main.js"]
