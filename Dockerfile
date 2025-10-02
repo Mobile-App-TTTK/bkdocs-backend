@@ -20,7 +20,7 @@ RUN npm run build
 # =========================
 # Stage 2: Run NestJS app
 # =========================
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
