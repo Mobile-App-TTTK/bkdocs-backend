@@ -7,6 +7,14 @@ This project is structured for both local development and cloud deployment (AWS 
 
 ---
 
+## Requirements
+
+-   Node.js v20+
+-   Docker & Docker Compose
+-   PostgreSQL 15
+
+---
+
 ## Project setup
 
 ```bash
@@ -20,7 +28,7 @@ npm install
 
 ```bash
 # Start PostgreSQL via Docker
-docker compose up -d 
+docker compose up -d postgres
 
 # Run database migrations
 npm run migration:run
@@ -52,23 +60,25 @@ npm run test:cov
 ## Deployment (AWS + GitHub Actions)
 
 ### Prerequisites
-- AWS EC2 instance with Docker & Docker Compose installed
-- AWS ECR for storing Docker images
-- GitHub Actions configured with secrets:
-  - `AWS_ACCESS_KEY_ID`
-  - `AWS_SECRET_ACCESS_KEY`
-  - `ECR_REPOSITORY`
-  - `EC2_HOST`
-  - `EC2_SSH_KEY`
-  - `ENV_PROD_FILE` (content of `.env.prod`)
+
+-   AWS EC2 instance with Docker & Docker Compose installed
+-   AWS ECR for storing Docker images
+-   GitHub Actions configured with secrets:
+    -   `AWS_ACCESS_KEY_ID`
+    -   `AWS_SECRET_ACCESS_KEY`
+    -   `ECR_REPOSITORY`
+    -   `EC2_HOST`
+    -   `EC2_SSH_KEY`
+    -   `ENV_PROD_FILE` (content of `.env.prod`)
 
 ### Steps
+
 1. Push changes to the `main` branch → triggers GitHub Actions pipeline.
 2. Pipeline will:
-   - Run tests in GitHub Actions
-   - Build & push Docker image to AWS ECR
-   - Deploy to EC2 using SSH and `docker-compose.prod.yml`
-   - Run migrations automatically
+    - Run tests in GitHub Actions
+    - Build & push Docker image to AWS ECR
+    - Deploy to EC2 using SSH and `docker-compose.prod.yml`
+    - Run migrations automatically
 
 ---
 
