@@ -1,9 +1,9 @@
 name: CI/CD Pipeline
 
 on:
-  push:   # 👉 Manual trigger, không tự động khi push
+  push:
     branches:
-      - main
+      - main   # 👉 Tự động chạy khi push code lên nhánh main
 
 jobs:
   # ========================
@@ -37,7 +37,7 @@ jobs:
   # ========================
   docker_build_and_push:
     runs-on: ubuntu-latest
-    environment: production 
+    environment: production
     needs: build_and_test
     steps:
       - name: Checkout source
@@ -72,6 +72,35 @@ jobs:
     environment: production
     needs: docker_build_and_push
     steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      # Copy docker-compose.prod.yml lên server
+      - name: Copy docker-compose.prod.yml
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.prod.yml"
+          target: "~/mobile-app/"
+
+      # Copy .env.prod lên server (tạo từ secret)
+      - name: Copy .env.prod
+        run: |
+          echo "${{ secrets.ENV_PROD_FILE }}" > .env.prod
+        shell: bash
+
+      - name: Upload .env.prod to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: ".env.prod"
+          target: "~/mobile-app/"
+
+      # Deploy bằng SSH
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v0.1.7
         with:
@@ -79,24 +108,9 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # Cài Docker + AWS CLI nếu chưa có
-            if ! command -v docker &> /dev/null
-            then
-              curl -fsSL https://get.docker.com | sh
-              sudo usermod -aG docker ubuntu
-            fi
-            if ! command -v docker compose &> /dev/null
-            then
-              sudo apt-get update && sudo apt-get install -y docker-compose-plugin
-            fi
-            if ! command -v aws &> /dev/null
-            then
-              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-              unzip awscliv2.zip
-              sudo ./aws/install
-            fi
+            cd ~/mobile-app
 
-            # Export AWS credentials từ Secrets
+            # Export AWS credentials để login vào ECR
             export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
             export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
             export AWS_DEFAULT_REGION=ap-southeast-1
@@ -104,17 +118,6 @@ jobs:
             # Login ECR
             aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin ${{ secrets.ECR_REPOSITORY }}
             
-            # Chuẩn bị thư mục app
-            mkdir -p ~/mobile-app && cd ~/mobile-app
-
-            # Ghi file env.prod từ GitHub Secrets
-            echo "${{ secrets.ENV_PROD_FILE }}" > .env.prod
-
-            # Copy file docker-compose.prod.yml nếu chưa có
-            # if [ ! -f docker-compose.prod.yml ]; then
-            #   echo "${{ secrets.DOCKER_COMPOSE_PROD }}" > docker-compose.prod.yml
-            # fi
-
             # Pull image mới
             docker compose --env-file .env.prod -f docker-compose.prod.yml pull 
 
