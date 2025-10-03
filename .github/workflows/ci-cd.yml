@@ -142,4 +142,4 @@ jobs:
             docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
 
             # Run migrations
-            docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T nestjs npm run migration:run:prod
+            # docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T nestjs npm run migration:run:prod

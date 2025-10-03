@@ -1,0 +1,18 @@
+name: Run DB Migration
+
+on:
+  workflow_dispatch:   # 👈 chỉ chạy khi bấm nút "Run workflow"
+
+jobs:
+  run_migration:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run migrations on EC2
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/mobile-app
+            docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T nestjs npm run migration:run:prod
