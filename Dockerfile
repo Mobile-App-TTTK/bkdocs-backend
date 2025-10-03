@@ -37,4 +37,4 @@ COPY --from=builder /usr/src/app/dist ./dist
 EXPOSE 8080
 
 # Start app
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]
