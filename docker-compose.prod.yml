@@ -1,15 +1,14 @@
 services:
-  # postgres:
-  #   image: postgres:15
-  #   environment:
-  #     POSTGRES_USER: ${DATABASE_USER}
-  #     POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-  #     POSTGRES_DB: ${DATABASE_NAME}
-  #   volumes:
-  #     - pgdata:/var/lib/postgresql/data
-  #   networks:
-  #     - mobile-net   # 👈 gán vào mạng riêng
-
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - mobile-net   # 👈 gán vào mạng riêng
   nestjs:
     image: 528192012668.dkr.ecr.ap-southeast-1.amazonaws.com/mobile-app-backend:latest
     env_file:
