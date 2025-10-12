@@ -9,6 +9,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { RatesModule } from './modules/ratings/ratings.module';
 import { DataSource } from 'typeorm';
+import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -42,10 +43,6 @@ import { DataSource } from 'typeorm';
   controllers: [AppController],
   providers: [
     AppService,
-    {
-      provide: 'APP_GUARD',
-      useClass: RolesGuard,
-    }
   ],
 })
 export class AppModule {

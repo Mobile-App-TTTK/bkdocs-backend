@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToMany, JoinTable } from 'typeorm';
-import { UserRole } from '@common/enums/user-role.enums';
+import { UserRole } from '@common/enums/user-role.enum';
 import { Notification } from '@modules/users/entities/notification.entity';
 import { Document } from '@modules/documents/entities/document.entity';
 import { Subject } from '@modules/documents/entities/subject.entity';
@@ -27,10 +27,10 @@ export class User {
   })
   role: UserRole;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({name: 'updated_at'})
   updatedAt: Date;
 
   @OneToMany(() => Document, (document) => document.uploader)
