@@ -5,6 +5,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './modules/auth/auth.module';
 import { RolesGuard } from '@common/guards/role.guard';
+import { DocumentsModule } from './modules/documents/documents.module';
+import { CommentsModule } from './modules/comments/comments.module';
+import { RatesModule } from './modules/ratings/ratings.module';
+import { DataSource } from 'typeorm';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -28,6 +32,12 @@ import { RolesGuard } from '@common/guards/role.guard';
     }),
 
     AuthModule,
+
+    DocumentsModule,
+
+    CommentsModule,
+
+    RatesModule,
   ],
   controllers: [AppController],
   providers: [
@@ -38,4 +48,8 @@ import { RolesGuard } from '@common/guards/role.guard';
     }
   ],
 })
-export class AppModule {}
+export class AppModule {
+    constructor(private dataSource: DataSource) {
+    console.log('✅ Connected entities:', this.dataSource.entityMetadatas.map(m => m.name));
+  }
+}

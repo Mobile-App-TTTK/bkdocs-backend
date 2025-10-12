@@ -19,7 +19,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
-    "migration:generate": "npm run typeorm -- migration:generate ./src/migrations/Init -d ./typeorm.config.ts",
+    "migration:generate": "npm run typeorm -- migration:generate ./src/migrations/$npm_config_name -d ./typeorm.config.ts",
     "migration:run": "npm run typeorm -- migration:run -d ./typeorm.config.ts",
     "migration:run:prod": "node ./node_modules/typeorm/cli.js migration:run -d dist/typeorm.config.js",
     "migration:revert": "npm run typeorm -- migration:revert"
@@ -62,6 +62,7 @@
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
+    "fast-glob": "^3.3.3",
     "globals": "^16.0.0",
     "jest": "^29.7.0",
     "prettier": "^3.4.2",
