@@ -57,7 +57,7 @@ jobs:
       - name: Verify typeorm.config.ts version
         run: |
           echo "===== typeorm.config.ts HEAD content ====="
-          grep migrations src/typeorm.config.ts
+          grep migrations typeorm.config.ts
       - name: Build Docker image
         run: |
           IMAGE_TAG=latest
