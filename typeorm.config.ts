@@ -44,7 +44,7 @@ export default new DataSource({
   //   Comment,
   // ],
   migrations: isProd
-    ? [path.join(__dirname, '/src/migrations/*.{js,ts}')]
+    ? [path.join(__dirname, 'src/migrations/*.{js,ts}')]
     : ['src/migrations/*.ts'],
   synchronize: false, // KHÔNG bao giờ bật trong prod
   logging: !isProd, // log khi dev
