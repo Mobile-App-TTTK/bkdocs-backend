@@ -57,7 +57,7 @@ jobs:
       - name: Build Docker image
         run: |
           IMAGE_TAG=latest
-          docker build -t ${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG .
+          docker build --no-cache -t ${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG .
 
       - name: Verify dist/main.js exists in image
         run: |
