@@ -8,7 +8,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { RatesModule } from './modules/ratings/ratings.module';
 import { DataSource } from 'typeorm';
-import { MinioModule } from './modules/minio/minio.module';
+import { S3Module } from '@modules/s3/s3.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -39,7 +39,7 @@ import { MinioModule } from './modules/minio/minio.module';
 
     RatesModule,
 
-    MinioModule,
+    S3Module,
   ],
   controllers: [AppController],
   providers: [

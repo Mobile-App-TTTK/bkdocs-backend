@@ -7,8 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Document } from './entities/document.entity';
-import { MinioService } from '../minio/minio.service'; // 👈 dùng service có sẵn
-
+import { S3Service } from '@modules/s3/s3.service';
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
@@ -16,7 +15,7 @@ export class DocumentsService {
   constructor(
     @InjectRepository(Document)
     private readonly documentRepo: Repository<Document>,
-    private readonly minioService: MinioService, // 👈 inject service
+    private readonly s3Service: S3Service,
   ) {}
 
 async getDownloadUrl(id: string): Promise<string> {
@@ -31,7 +30,7 @@ async getDownloadUrl(id: string): Promise<string> {
         throw new NotFoundException(`Document "${id}" does not have an attached file`);
       }
 
-      const url = await this.minioService.getPresignedDownloadUrl(fileKey);
+      const url = await this.s3Service.getPresignedDownloadUrl(fileKey);
 
       this.logger.log(` Generated presigned URL for document: ${id}`);
       return url;

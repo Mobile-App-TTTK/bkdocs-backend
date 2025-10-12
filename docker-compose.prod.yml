@@ -10,22 +10,6 @@ services:
     networks:
       - mobile-net   # 👈 gán vào mạng riêng
 
-  minio:
-    image: minio/minio
-    container_name: mobile_app_minio
-    restart: always
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
-    command: server /data --console-address ":9001"
-    ports:
-      - "9000:9000"   # API endpoint
-      - "9001:9001"   # Web console
-    volumes:
-      - minio_data:/data
-    networks:
-      - mobile-net   
-
   nestjs:
     image: 528192012668.dkr.ecr.ap-southeast-1.amazonaws.com/mobile-app-backend:latest
     env_file:
@@ -34,13 +18,11 @@ services:
       - "8080:8080"
     depends_on:
       - postgres
-      - minio
     networks:
       - mobile-net   # 👈 cùng mạng với postgres
 
 volumes:
   pgdata:
-  minio_data:
 networks:
   mobile-net:       # 👈 network kiểu bridge
     driver: bridge
