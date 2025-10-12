@@ -1,47 +1,40 @@
 import {
   Injectable,
-  Inject,
-  NotFoundException,
-  InternalServerErrorException,
   Logger,
+  InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
-import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { Document } from './entities/document.entity';
-import { Client } from 'minio';
-import { ConfigService } from '@nestjs/config';
+import { MinioService } from '../minio/minio.service'; // 👈 dùng service có sẵn
 
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
-  private readonly bucket: string;
 
   constructor(
     @InjectRepository(Document)
     private readonly documentRepo: Repository<Document>,
-    @Inject('MINIO_CLIENT')
-    private readonly minioClient: Client,
-    private readonly configService: ConfigService,
-  ) {
-    this.bucket = this.configService.get<string>('MINIO_BUCKET', 'documents');
-  }
+    private readonly minioService: MinioService, // 👈 inject service
+  ) {}
 
-  async getDownloadUrl(documentId: string): Promise<string> {
-    const document = await this.documentRepo.findOne({ where: { id: documentId } });
+async getDownloadUrl(id: string): Promise<string> {
+      const document = await this.documentRepo.findOne({ where: { id } });
 
-    if (!document) {
-      throw new NotFoundException('Tài liệu không tồn tại');
-    }
-      const presignedUrl = await this.minioClient.presignedGetObject(
-        this.bucket,
-        document.fileKey,
-        60 * 5, // 5 phút
-      );
-
-      if (!presignedUrl) {
-        throw new InternalServerErrorException('Không thể tạo URL tải xuống');
+      if (!document) {
+        throw new NotFoundException(`Document with ID "${id}" not found`);
       }
-      this.logger.log(`Generated presigned URL for document ${document.id}`);
-      return presignedUrl;
+
+      const fileKey = document.fileKey;
+      if (!fileKey) {
+        throw new NotFoundException(`Document "${id}" does not have an attached file`);
+      }
+
+      const url = await this.minioService.getPresignedDownloadUrl(fileKey);
+
+      this.logger.log(` Generated presigned URL for document: ${id}`);
+      return url;
   }
+
 }

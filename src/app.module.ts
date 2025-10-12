@@ -4,12 +4,11 @@ import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './modules/auth/auth.module';
-import { RolesGuard } from '@common/guards/role.guard';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { RatesModule } from './modules/ratings/ratings.module';
 import { DataSource } from 'typeorm';
-import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
+import { MinioModule } from './modules/minio/minio.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -39,6 +38,8 @@ import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
     CommentsModule,
 
     RatesModule,
+
+    MinioModule,
   ],
   controllers: [AppController],
   providers: [

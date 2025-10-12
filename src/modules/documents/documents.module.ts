@@ -7,19 +7,13 @@ import { Subject } from './entities/subject.entity';
 import { Faculty } from './entities/falcuty.entity';
 import { User } from '@modules/users/entities/user.entity';
 import { Rating } from '@modules/ratings/entities/rating.entity';
-import { createMinioClient } from './providers/minio.provider';
-import { ConfigService } from '@nestjs/config';
 import { Image } from '@modules/documents/entities/image.entity';
+import { ConfigService } from '@nestjs/config';
+import { MinioModule } from '@modules/minio/minio.module';
 
 @Module({
   controllers: [DocumentsController],
-  providers: [DocumentsService,
-    { 
-      provide: 'MINIO_CLIENT',
-      inject: [ConfigService], 
-      useFactory: createMinioClient
-    }
-  ],
-  imports: [TypeOrmModule.forFeature([Document, Subject, Faculty, User, Rating, Image])],
+  providers: [DocumentsService, ConfigService],
+  imports: [MinioModule, TypeOrmModule.forFeature([Document, Subject, Faculty, User, Rating, Image])],
 })
 export class DocumentsModule {}
