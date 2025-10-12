@@ -9,11 +9,11 @@ import { User } from '@modules/users/entities/user.entity';
 import { Rating } from '@modules/ratings/entities/rating.entity';
 import { Image } from '@modules/documents/entities/image.entity';
 import { ConfigService } from '@nestjs/config';
-import { MinioModule } from '@modules/minio/minio.module';
+import { S3Module } from '@modules/s3/s3.module';
 
 @Module({
   controllers: [DocumentsController],
   providers: [DocumentsService, ConfigService],
-  imports: [MinioModule, TypeOrmModule.forFeature([Document, Subject, Faculty, User, Rating, Image])],
+  imports: [S3Module, TypeOrmModule.forFeature([Document, Subject, Faculty, User, Rating, Image])],
 })
 export class DocumentsModule {}
