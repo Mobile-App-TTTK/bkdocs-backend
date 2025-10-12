@@ -40,7 +40,7 @@ services:
 
 volumes:
   pgdata:
-
+  minio_data:
 networks:
   mobile-net:       # 👈 network kiểu bridge
     driver: bridge
