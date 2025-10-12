@@ -106,36 +106,6 @@ jobs:
           source: ".env.prod"
           target: "~/mobile-app/"
 
-  deploy:
-    runs-on: ubuntu-latest
-    environment: production
-    needs: docker_build_and_push
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v3
-
-      - name: Copy docker-compose.prod.yml
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "docker-compose.prod.yml"
-          target: "~/mobile-app/"
-
-      - name: Copy .env.prod
-        run: echo "${{ secrets.ENV_PROD_FILE }}" > .env.prod
-        shell: bash
-
-      - name: Upload .env.prod to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: ".env.prod"
-          target: "~/mobile-app/"
-
       - name: Deploy to EC2 (clean old image + pull new)
         uses: appleboy/ssh-action@v0.1.7
         with:
