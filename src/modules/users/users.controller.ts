@@ -6,11 +6,12 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 // Guards
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Roles } from '@common/decorators/role.decorator';
-import { UserRole } from '@common/enums/user-role.enums';
+import { UserRole } from '@common/enums/user-role.enum';
+import { RolesGuard } from '@common/guards/role.guard';
 @ApiTags('users')
-@ApiBearerAuth('JWT-auth') // 👈 trùng với tên schema ở trên
-@UseGuards(JwtAuthGuard)
-@Roles(UserRole.ADMIN) // Chỉ ADMIN mới được truy cập vào controller này
+@ApiBearerAuth('JWT-auth')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN)
 @Controller('users')
 export class UsersController {
     constructor(private userService: UsersService) {}
