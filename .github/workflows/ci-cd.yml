@@ -130,5 +130,11 @@ jobs:
             echo "🚀 Khởi động lại container..."
             docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate
 
+            echo "🧽 Xóa tất cả image cũ không còn dùng..."
+            docker image prune -a -f
+
+            echo "🧱 Xóa cache & dangling layers..."
+            docker system prune -f
+
             echo "✅ Kiểm tra digest hiện tại:"
             docker inspect 528192012668.dkr.ecr.ap-southeast-1.amazonaws.com/mobile-app-backend:latest | grep sha256 || true
