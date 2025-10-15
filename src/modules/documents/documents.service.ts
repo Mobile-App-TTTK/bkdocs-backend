@@ -36,4 +36,14 @@ async getDownloadUrl(id: string): Promise<string> {
       return url;
   }
 
+  async getDocumentById(id: string): Promise<Document> {
+    const document = await this.documentRepo.findOne({ where: { id } });
+
+    if (!document) {
+      throw new NotFoundException(`Document with ID "${id}" not found`);
+    }
+    
+    return document;
+  }
+
 }
