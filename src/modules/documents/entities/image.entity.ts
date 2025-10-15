@@ -1,4 +1,4 @@
-import { Entity, ManyToOne, PrimaryColumn } from "typeorm";
+import { Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 import { Document } from "@modules/documents/entities/document.entity";
 
 @Entity('images')
@@ -7,5 +7,6 @@ export class Image {
     fileKey: string;
 
     @ManyToOne(() => Document, (document) => document.images, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'document_id' })
     document: Document;
 }
