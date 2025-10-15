@@ -4,6 +4,7 @@ import {
   Column,
   ManyToOne,
   CreateDateColumn,
+  JoinColumn,
 } from 'typeorm';
 import { User } from '@modules/users/entities/user.entity';
 import { Document } from '@modules/documents/entities/document.entity';
@@ -17,13 +18,16 @@ export class Comment {
   content: string;
 
   @CreateDateColumn()
+  @Column({ name: 'created_at' })
   createdAt: Date;
 
   /** Người bình luận */
   @ManyToOne(() => User, (user) => user.comments, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
   user: User;
 
   /** Tài liệu được bình luận */
   @ManyToOne(() => Document, (document) => document.comments, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'document_id' })
   document: Document;
 }
