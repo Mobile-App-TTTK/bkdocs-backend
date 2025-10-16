@@ -4,7 +4,10 @@ import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './modules/auth/auth.module';
+import { CommentsModule } from './modules/comments/comments.module';
 import { RolesGuard } from '@common/guards/role.guard';
+import { DocumentsModule } from './modules/documents/documents.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -27,7 +30,9 @@ import { RolesGuard } from '@common/guards/role.guard';
       }),
     }),
 
-    AuthModule,
+  AuthModule,
+  DocumentsModule,
+  CommentsModule,
   ],
   controllers: [AppController],
   providers: [
