@@ -22,6 +22,7 @@ import {
   ApiOkResponse,
   ApiBody,
   ApiConsumes,
+  ApiOperation,
 } from '@nestjs/swagger';
 import { DownloadDocumentUrlResponseDto } from './dtos/responses/downloadDocumentUrl.response.dto';
 import { ApiResponseSwaggerWrapper } from '@common/decorators/api-response-swagger-wapper.decorator';
@@ -74,6 +75,7 @@ export class DocumentsController {
     return new DownloadDocumentUrlResponseDto({ url });
   }
 
+  @ApiOperation({ description: 'Lấy 3 tài liệu nhiều lượt tải nhất' })
   @ApiResponseSwaggerWrapper(SuggestDocumentsResponseDto)
   @ApiErrorResponseSwaggerWrapper()
   @Public()
@@ -83,6 +85,7 @@ export class DocumentsController {
     return this.documentsService.getSuggestions();
   }
 
+  @ApiOperation({ description: 'Lấy 6 tài liệu theo khoa của user' })
   @ApiResponseSwaggerWrapper(SuggestDocumentsResponseDto)
   @ApiErrorResponseSwaggerWrapper()
   @Get('user/suggestions')
@@ -93,6 +96,7 @@ export class DocumentsController {
   }
 
   @Post('upload')
+  @ApiOperation({ description: 'Upload tài liệu lên' })
   @ApiResponseSwaggerWrapper(DocumentResponseDto, { status: 201 })
   @ApiErrorResponseSwaggerWrapper()
   @UseGuards(JwtAuthGuard)

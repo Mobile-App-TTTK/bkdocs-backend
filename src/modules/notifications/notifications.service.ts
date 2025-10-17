@@ -52,7 +52,7 @@ export class NotificationsService {
       .where('faculty.id = :facultyId OR subject.id = :subjectId', { facultyId, subjectId })
       .getMany();
 
-    const notifications = users.map(async (user) => {
+    users.map(async (user) => {
       const notification = this.notificationRepository.create({
         user,
         message: `Tài liệu mới "${docName}" đã được thêm vào`,

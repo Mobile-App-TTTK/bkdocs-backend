@@ -86,9 +86,9 @@ export class DocumentsService {
     if (!fileKey) {
       throw new NotFoundException(`Document "${id}" does not have an attached file`);
     }
-
     const url = await this.s3Service.getPresignedDownloadUrl(fileKey, fileName, isDownload);
-
+    document.downloadCount++;
+    this.documentRepo.save(document);
     this.logger.log(` Generated presigned URL for document: ${id}`);
     return url;
   }
