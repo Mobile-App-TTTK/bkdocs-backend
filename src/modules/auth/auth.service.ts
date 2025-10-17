@@ -80,18 +80,14 @@ export class AuthService {
     }
     await this.prRepo.save(rec);
 
-    try {
-      await this.mailer.sendMail({
-        to: email,
-        subject: 'Your registration OTP',
-        text: `Your OTP code is: ${otp}\nIt will expire in ${this.OTP_TTL_MIN} minutes.`,
-        html: `<p>Your OTP code is:</p>
-               <p><b style="font-size:20px; letter-spacing:3px;">${otp}</b></p>
-               <p>This code will expire in <b>${this.OTP_TTL_MIN} minutes</b>.</p>`,
-      });
-    } catch {
-      throw new BadRequestException('Failed to send OTP email.');
-    }
+    await this.mailer.sendMail({
+      to: email,
+      subject: 'Your registration OTP',
+      text: `Your OTP code is: ${otp}\nIt will expire in ${this.OTP_TTL_MIN} minutes.`,
+      html: `<p>Your OTP code is:</p>
+              <p><b style="font-size:20px; letter-spacing:3px;">${otp}</b></p>
+              <p>This code will expire in <b>${this.OTP_TTL_MIN} minutes</b>.</p>`,
+    });
 
     return { message: 'An OTP has been sent to your email.' };
   }
@@ -116,10 +112,7 @@ export class AuthService {
 
     const user = await this.usersService.create(name, email, password);
 
-    rec.userId = user.id;
-    rec.tokenHash = null;
-    rec.tokenExpiresAt = null;
-    await this.prRepo.save(rec);
+    await this.prRepo.delete(rec.id);
 
     return { message: 'Registered successfully', user: { id: user.id, email: user.email } };
   }
@@ -167,6 +160,7 @@ export class AuthService {
       rec = this.prRepo.create({
         userId: user.id,
         otpHash,
+        purpose: 'reset',
         expiresAt,
         attempts: 0,
         lastOtpSentAt: now,
@@ -183,18 +177,14 @@ export class AuthService {
     }
     await this.prRepo.save(rec);
 
-    try {
-      await this.mailer.sendMail({
-        to: email,
-        subject: 'Your password reset OTP',
-        text: `Your OTP code is: ${otp}\nIt will expire in ${this.OTP_TTL_MIN} minutes.`,
-        html: `<p>Your OTP code is:</p>
-               <p><b style="font-size:20px; letter-spacing:3px;">${otp}</b></p>
-               <p>This code will expire in <b>${this.OTP_TTL_MIN} minutes</b>.</p>`,
-      });
-    } catch {
-      throw new BadRequestException('Failed to send OTP email.');
-    }
+    await this.mailer.sendMail({
+      to: email,
+      subject: 'Your password reset OTP',
+      text: `Your OTP code is: ${otp}\nIt will expire in ${this.OTP_TTL_MIN} minutes.`,
+      html: `<p>Your OTP code is:</p>
+              <p><b style="font-size:20px; letter-spacing:3px;">${otp}</b></p>
+              <p>This code will expire in <b>${this.OTP_TTL_MIN} minutes</b>.</p>`,
+    });
 
     return { message: 'An OTP has been sent to your email.' };
   }
@@ -261,9 +251,8 @@ export class AuthService {
 
     const hash = await bcrypt.hash(newPassword, Number(process.env.BCRYPT_SALT_ROUNDS || 10));
     await this.usersService.changePassword(user.id, { password: hash });
-    matched.tokenHash = null;
-    matched.tokenExpiresAt = null;
-    await this.prRepo.save(matched);
+
+    await this.prRepo.delete(matched.id);
 
     return { message: 'Password has been reset successfully' };
   }

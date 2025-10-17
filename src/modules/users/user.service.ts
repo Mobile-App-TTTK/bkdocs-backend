@@ -34,4 +34,8 @@ export class UsersService {
     if (ok.affected === 0) throw new NotFoundException('User not found');
     return this.usersRepo.findOne({ where: { id } });
   }
+
+  async findByIdWithFaculty(id: string) {
+    return this.usersRepo.findOne({ where: { id }, relations: ['faculty'] });
+  }
 }

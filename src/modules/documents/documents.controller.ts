@@ -6,6 +6,7 @@ import {
   Logger,
   UseGuards,
   BadRequestException,
+  Req,
 } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
@@ -16,9 +17,10 @@ import { ApiErrorResponseSwaggerWrapper } from '@common/decorators/api-error-res
 import { Document } from '@modules/documents/entities/document.entity';
 import { DetailsDocumentResponseDto } from './dtos/responses/detailsDocument.response.dto';
 import { SearchDocumentsDto } from './dtos/responses/search-documents.dto';
-import { SuggestDocumentResponseDto } from './dtos/responses/suggestDocument.response.dto';
 import { Public } from '@common/decorators/public.decorator';
-@Public()
+import { Subject } from './entities/subject.entity';
+
+// @Public()
 @ApiTags('documents')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard)
@@ -43,7 +45,7 @@ export class DocumentsController {
     return this.documentsService.search(q);
   }
 
-  @Get('suggest')
+  @Get('suggest/keyword')
   @ApiQuery({ name: 'keyword', required: true })
   @ApiOkResponse({ description: 'Suggest Keyword', type: [String] })
   async suggest(@Query('keyword') keyword: string): Promise<string[]> {
@@ -51,6 +53,12 @@ export class DocumentsController {
       throw new BadRequestException('keyword is required');
     }
     return this.documentsService.suggest(keyword);
+  }
+
+  @Get('suggest/subject')
+  @ApiOkResponse({ type: [Subject] })
+  async suggestSubject(@Req() req): Promise<Subject[]> {
+    return this.documentsService.suggestSubjectsForUser((req as any).user.userId);
   }
 
   @Get(':id/download')

@@ -41,6 +41,9 @@ export class User {
   })
   role: UserRole;
 
+  @Column({ name: 'year_of_study', type: 'smallint', nullable: true })
+  yearOfStudy: number | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

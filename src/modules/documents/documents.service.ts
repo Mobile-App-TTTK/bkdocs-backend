@@ -3,6 +3,8 @@ import {
   Logger,
   InternalServerErrorException,
   NotFoundException,
+  BadRequestException,
+  Req,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, ILike, Repository } from 'typeorm';
@@ -12,6 +14,9 @@ import { Faculty } from './entities/falcuty.entity';
 import { DetailsDocumentResponseDto } from './dtos/responses/detailsDocument.response.dto';
 import { SearchDocumentsDto } from './dtos/responses/search-documents.dto';
 import { S3Service } from '@modules/s3/s3.service';
+import { FacultyYearSubject } from './entities/faculty-year-subject.entity';
+import { UsersService } from '@modules/users/user.service';
+
 
 @Injectable()
 export class DocumentsService {
@@ -25,6 +30,8 @@ export class DocumentsService {
     @InjectRepository(Faculty)
     private readonly facultyRepo: Repository<Faculty>,
     private readonly s3Service: S3Service,
+    @InjectRepository(FacultyYearSubject) private readonly fysRepo: Repository<FacultyYearSubject>,
+    private readonly usersService: UsersService,
   ) {}
   
   async search(q: SearchDocumentsDto): Promise<(Document & { rank?: number })[]> {
@@ -159,5 +166,25 @@ export class DocumentsService {
       thumbnailKey: document.thumbnailKey,
       overallRating,
     });
+  }
+
+  async suggestSubjectsForUser(userID: string): Promise<Subject[]> {
+    const user = await this.usersService.findByIdWithFaculty(userID);
+    if (!user) throw new NotFoundException('User not found');
+
+    const year = (user as any).yearOfStudy ?? (user as any).year_of_study;
+    if (!year || !user.faculty?.id) {
+      throw new BadRequestException('User must have faculty and year_of_study set');
+    }
+
+    const maps = await this.fysRepo.find({
+      where: {
+        faculty: { id: user.faculty.id },
+        year: Number(year),
+      },
+      relations: ['subject'],
+    });
+
+    return maps.map((m) => m.subject).filter(Boolean);
   }
 }
