@@ -116,7 +116,7 @@ jobs:
             cd ~/mobile-app
 
             echo "🧹 Dừng container cũ..."
-            docker compose --env-file .env.prod -f docker-compose.prod.yml down || true
+            docker compose -f docker-compose.prod.yml stop backend
 
             echo "🧽 Xóa tất cả image cũ không còn dùng..."
             docker image prune -a -f
