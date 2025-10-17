@@ -37,7 +37,7 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { AllFacultiesAndSubjectsDto } from './dtos/responses/allFalcutiesAndSubjects.response.dto';
 import { DocumentResponseDto } from './dtos/responses/document.response.dto';
 import { subscribe } from 'diagnostics_channel';
-import { Subject } from 'typeorm/persistence/Subject';
+import { Subject } from './entities/subject.entity';;
 @ApiTags('documents')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard)
