@@ -17,7 +17,7 @@ import { DocumentResponseDto } from './dtos/responses/document.response.dto';
 import { Image } from './entities/image.entity';
 import { NotificationsService } from '@modules/notifications/notifications.service';
 import { NotificationType } from '@common/enums/notification-type.enum';
-import { CreateNotificationDto } from '@modules/notifications/dto/create-notification.dto';
+import { CreateNotificationDto } from '@modules/notifications/dtos/create-notification.dto';
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);

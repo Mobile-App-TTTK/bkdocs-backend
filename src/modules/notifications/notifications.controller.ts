@@ -15,7 +15,7 @@ import { NotificationsService } from './notifications.service';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { ApiErrorResponseSwaggerWrapper } from '@common/decorators/api-error-response-swagger-wapper.decorator';
-import { GetUserNotificationsResponseDto } from './dto/response/getUserNotifications.response.dto';
+import { GetUserNotificationsResponseDto } from './dtos/response/getUserNotifications.response.dto';
 import { Notification } from './entities/notification.entity';
 
 @ApiTags('notifications')

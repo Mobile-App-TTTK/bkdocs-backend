@@ -6,7 +6,7 @@ import { Notification } from './entities/notification.entity';
 import {
   GetUserNotificationsResponseDto,
   UserNotificationDto,
-} from './dto/response/getUserNotifications.response.dto';
+} from './dtos/response/getUserNotifications.response.dto';
 import { Faculty } from '@modules/documents/entities/falcuty.entity';
 import { Subject } from '@modules/documents/entities/subject.entity';
 import { NotificationType } from '@common/enums/notification-type.enum';
