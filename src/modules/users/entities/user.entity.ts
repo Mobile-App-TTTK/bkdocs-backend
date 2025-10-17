@@ -11,7 +11,7 @@ import {
   JoinColumn,
   OneToOne,
 } from 'typeorm';
-import { UserRole } from '@common/enums/user-role.enums';
+import { UserRole } from '@common/enums/user-role.enum';
 import { Notification } from '@modules/users/entities/notification.entity';
 import { Document } from '@modules/documents/entities/document.entity';
 import { Subject } from '@modules/documents/entities/subject.entity';

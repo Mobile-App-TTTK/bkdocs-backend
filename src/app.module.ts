@@ -3,15 +3,12 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AuthModule } from './modules/auth/auth.module';
-import { CommentsModule } from './modules/comments/comments.module';
-import { DocumentsModule } from './modules/documents/documents.module';
-import { CommentsModule } from './modules/comments/comments.module';
-import { RatesModule } from './modules/ratings/ratings.module';
+import { AuthModule } from '@modules/auth/auth.module';
+import { RatesModule } from '@modules/ratings/ratings.module';
 import { DataSource } from 'typeorm';
 import { S3Module } from '@modules/s3/s3.module';
-import { DocumentsModule } from './modules/documents/documents.module';
-
+import { DocumentsModule } from '@modules/documents/documents.module';
+import { CommentsModule } from '@modules/comments/comments.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -37,8 +34,6 @@ import { DocumentsModule } from './modules/documents/documents.module';
     AuthModule,
 
     DocumentsModule,
-
-    CommentsModule,
 
     RatesModule,
 
