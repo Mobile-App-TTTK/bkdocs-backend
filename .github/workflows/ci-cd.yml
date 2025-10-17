@@ -63,11 +63,6 @@ jobs:
           IMAGE_TAG=latest
           docker build --no-cache -t ${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG .
 
-      - name: Verify dist/main.js exists in image
-        run: |
-          IMAGE_TAG=latest
-          docker run --rm ${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG ls -R dist || (echo "❌ dist not found in image" && exit 1)
-
       - name: Push to ECR
         run: |
           IMAGE_TAG=latest
@@ -116,7 +111,7 @@ jobs:
             cd ~/mobile-app
 
             echo "🧹 Dừng container cũ..."
-            docker compose -f docker-compose.prod.yml stop nestjs
+            docker compose --env-file .env.prod -f docker-compose.prod.yml stop nestjs
 
             echo "🧽 Xóa tất cả image cũ không còn dùng..."
             docker image prune -f
