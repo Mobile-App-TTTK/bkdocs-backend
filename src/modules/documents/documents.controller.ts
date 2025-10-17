@@ -16,7 +16,9 @@ import { ApiErrorResponseSwaggerWrapper } from '@common/decorators/api-error-res
 import { Document } from '@modules/documents/entities/document.entity';
 import { DetailsDocumentResponseDto } from './dtos/responses/detailsDocument.response.dto';
 import { SearchDocumentsDto } from './dtos/responses/search-documents.dto';
-
+import { SuggestDocumentResponseDto } from './dtos/responses/suggestDocument.response.dto';
+import { Public } from '@common/decorators/public.decorator';
+@Public()
 @ApiTags('documents')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard)
@@ -75,4 +77,10 @@ export class DocumentsController {
     const document = await this.documentsService.getDocumentById(id);
     return document;
   }
+
+  // @Public()
+  // @Get('/suggestions')
+  // async getSuggestions(): Promise<SuggestDocumentResponseDto> {
+  //   return this.documentsService.getSuggestions();
+  // }
 }

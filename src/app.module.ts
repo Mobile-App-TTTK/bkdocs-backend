@@ -9,6 +9,8 @@ import { DataSource } from 'typeorm';
 import { S3Module } from '@modules/s3/s3.module';
 import { DocumentsModule } from '@modules/documents/documents.module';
 import { CommentsModule } from '@modules/comments/comments.module';
+import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
+import { APP_GUARD, Reflector } from '@nestjs/core';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -42,7 +44,7 @@ import { CommentsModule } from '@modules/comments/comments.module';
     CommentsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, Reflector],
 })
 export class AppModule {
   constructor(private dataSource: DataSource) {
