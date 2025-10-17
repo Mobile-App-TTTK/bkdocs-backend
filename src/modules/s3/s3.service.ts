@@ -22,7 +22,7 @@ export class S3Service implements OnModuleInit {
   constructor(
     @Inject('S3_CLIENT')
     private readonly s3Client: S3Client,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService
   ) {
     this.bucketName = this.configService.get<string>('S3_BUCKET', 'bkdocs');
   }
@@ -46,14 +46,18 @@ export class S3Service implements OnModuleInit {
   }
 
   /** Presigned URL để tải file trực tiếp */
-  async getPresignedDownloadUrl(fileKey: string, fileName: string, expiresInSeconds = 3600): Promise<string> {
+  async getPresignedDownloadUrl(
+    fileKey: string,
+    fileName?: string,
+    expiresInSeconds = 3600
+  ): Promise<string> {
     try {
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
         Key: fileKey,
-        ResponseContentDisposition: `attachment; filename="${fileName}"`,
+        ResponseContentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(fileName ?? fileKey)}`,
       });
-      
+
       const url = await getSignedUrl(this.s3Client, command, { expiresIn: expiresInSeconds });
 
       this.logger.log(`Generated presigned URL for: ${fileKey}`);
