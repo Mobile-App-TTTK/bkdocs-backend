@@ -12,7 +12,7 @@ import {
   OneToOne,
 } from 'typeorm';
 import { UserRole } from '@common/enums/user-role.enum';
-import { Notification } from '@modules/users/entities/notification.entity';
+import { Notification } from '@modules/notifications/entities/notification.entity';
 import { Document } from '@modules/documents/entities/document.entity';
 import { Subject } from '@modules/documents/entities/subject.entity';
 import { Faculty } from '@modules/documents/entities/falcuty.entity';
@@ -57,7 +57,7 @@ export class User {
   subscribedSubjects: Subject[];
 
   @ManyToMany(() => Faculty, (faculty) => faculty.subscribers)
-  @JoinTable({ name: 'falcuty_subscriptions' })
+  @JoinTable({ name: 'facuty_subscriptions' })
   subscribedFaculties: Faculty[];
 
   @OneToMany(() => Rating, (rating) => rating.user)

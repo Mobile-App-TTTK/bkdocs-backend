@@ -10,6 +10,7 @@ import { Rating } from '@modules/ratings/entities/rating.entity';
 import { Image } from '@modules/documents/entities/image.entity';
 import { ConfigService } from '@nestjs/config';
 import { S3Module } from '@modules/s3/s3.module';
+import { NotificationsModule } from '@modules/notifications/notifications.module';
 
 @Module({
   controllers: [DocumentsController],
@@ -17,6 +18,7 @@ import { S3Module } from '@modules/s3/s3.module';
   imports: [
     S3Module,
     TypeOrmModule.forFeature([Document, User, Subject, Faculty, User, Rating, Image]),
+    NotificationsModule,
   ],
 })
 export class DocumentsModule {}

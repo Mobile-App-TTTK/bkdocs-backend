@@ -9,9 +9,9 @@ import {
   Req,
   Post,
   UseInterceptors,
-  UploadedFile,
   Body,
   UploadedFiles,
+  Delete,
 } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
@@ -31,17 +31,19 @@ import { DetailsDocumentResponseDto } from './dtos/responses/detailsDocument.res
 import { SearchDocumentsDto } from './dtos/responses/search-documents.dto';
 import { SuggestDocumentsResponseDto } from './dtos/responses/suggestDocument.response.dto';
 import { Public } from '@common/decorators/public.decorator';
-import { FileFieldsInterceptor, FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { AllFacultiesAndSubjectsDto } from './dtos/responses/allFalcutiesAndSubjects.response.dto';
 import { DocumentResponseDto } from './dtos/responses/document.response.dto';
+import { subscribe } from 'diagnostics_channel';
 @ApiTags('documents')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard)
 @Controller('documents')
 export class DocumentsController {
-  private readonly logger = new Logger(DocumentsController.name);
-
-  constructor(private readonly documentsService: DocumentsService) {}
+  constructor(
+    private readonly documentsService: DocumentsService,
+    private readonly logger: Logger
+  ) {}
 
   @Get('search')
   @ApiOkResponse({ type: [Document] })
@@ -64,16 +66,10 @@ export class DocumentsController {
     description: 'ID của tài liệu cần tải xuống',
     example: '884330b0-3ab1-4ca3-a0f2-3929c9c39933',
   })
-  // {
-  //   "statusCode": 200,
-  //   "success": true,
-  //   "data": {
-  //     "url": "https://bkdocs-hcmut.s3.ap-southeast-1.amazonaws.com/Giao_trinh_GT1.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAXV6VSQF6CSGKZP77%2F20251015%2Fap-southeast-1%2Fs3%2Faws4_request&X-Amz-Date=20251015T003223Z&X-Amz-Expires=3600&X-Amz-Signature=bd7e46fc06eefebbe6c4bfea4f9260c5b27acf6edbb1726cf1692952c80f318c&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject"
-  //   }
-  // }
   @ApiResponseSwaggerWrapper(DownloadDocumentUrlResponseDto)
   @ApiErrorResponseSwaggerWrapper()
   async download(@Param('id') id: string): Promise<DownloadDocumentUrlResponseDto> {
+    this.logger.log(`Tạo URL tải xuống cho tài liệu ID: ${id}`);
     const url: string = await this.documentsService.getDownloadUrl(id);
     return new DownloadDocumentUrlResponseDto({ url });
   }
@@ -83,6 +79,7 @@ export class DocumentsController {
   @Public()
   @Get('suggestions')
   async getSuggestions(): Promise<SuggestDocumentsResponseDto> {
+    this.logger.log('Lấy gợi ý tài liệu cho người dùng không đăng nhập');
     return this.documentsService.getSuggestions();
   }
 
@@ -90,12 +87,13 @@ export class DocumentsController {
   @ApiErrorResponseSwaggerWrapper()
   @Get('user/suggestions')
   async getUserSuggestions(@Req() req: any): Promise<SuggestDocumentsResponseDto> {
+    this.logger.log(`Lấy gợi ý tài liệu cho người dùng ID: ${req.user.id}`);
     const userId: string = req.user.id;
     return this.documentsService.getUserSuggestions(userId);
   }
 
   @Post('upload')
-  @ApiResponseSwaggerWrapper(DocumentResponseDto)
+  @ApiResponseSwaggerWrapper(DocumentResponseDto, { status: 201 })
   @ApiErrorResponseSwaggerWrapper()
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(
@@ -162,6 +160,7 @@ export class DocumentsController {
     @Body('description') description: string,
     @Req() req: any
   ): Promise<DocumentResponseDto> {
+    this.logger.log(`Người dùng ID: ${req.user.id} đang tải lên tài liệu mới`);
     const userId = req.user.id;
     if (!files.file?.length) throw new BadRequestException('Thiếu file tài liệu chính');
 
@@ -186,6 +185,7 @@ export class DocumentsController {
   @ApiResponseSwaggerWrapper(DetailsDocumentResponseDto)
   @ApiErrorResponseSwaggerWrapper()
   async getDocumentById(@Param('id') id: string): Promise<DetailsDocumentResponseDto> {
+    this.logger.log(`Lấy thông tin chi tiết cho tài liệu ID: ${id}`);
     const document = await this.documentsService.getDocumentById(id);
     return document;
   }
@@ -194,6 +194,7 @@ export class DocumentsController {
   @ApiErrorResponseSwaggerWrapper()
   @Get('falculties-subjects/all')
   async getAllFacultiesAndSubjects(): Promise<AllFacultiesAndSubjectsDto> {
+    this.logger.log('Lấy tất cả khoa và môn học');
     return this.documentsService.getAllFacultiesAndSubjects();
   }
 }

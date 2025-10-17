@@ -15,6 +15,9 @@ import { Subject } from '@modules/documents/entities/subject.entity';
 import { AllFacultiesAndSubjectsDto } from './dtos/responses/allFalcutiesAndSubjects.response.dto';
 import { DocumentResponseDto } from './dtos/responses/document.response.dto';
 import { Image } from './entities/image.entity';
+import { NotificationsService } from '@modules/notifications/notifications.service';
+import { NotificationType } from '@common/enums/notification-type.enum';
+import { CreateNotificationDto } from '@modules/notifications/dto/create-notification.dto';
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
@@ -30,7 +33,8 @@ export class DocumentsService {
     private readonly subjectRepo: Repository<Subject>,
     @InjectRepository(Image)
     private readonly imageRepo: Repository<Image>,
-    private readonly s3Service: S3Service
+    private readonly s3Service: S3Service,
+    private readonly NotificationsService: NotificationsService
   ) {}
 
   async search(q: SearchDocumentsDto): Promise<(Document & { rank?: number })[]> {
@@ -212,15 +216,16 @@ export class DocumentsService {
     }
 
     // 4️ Tạo Document entity
-    this.logger.log('🧱 Tạo Document entity trong DB...');
+    const falcuty = facultyId ? await this.facultyRepo.findOneBy({ id: facultyId }) : null;
+    const subject = subjectId ? await this.subjectRepo.findOneBy({ id: subjectId }) : null;
     const doc = this.documentRepo.create({
       title: file.originalname,
       description: description || null,
       fileKey,
       thumbnailKey,
       uploader: uploaderUser,
-      faculty: facultyId ? await this.facultyRepo.findOneBy({ id: facultyId }) : null,
-      subject: subjectId ? await this.subjectRepo.findOneBy({ id: subjectId }) : null,
+      faculty: facultyId ? falcuty : null,
+      subject: subjectId ? subject : null,
       status: 'pending',
     } as DeepPartial<Document>);
 
@@ -239,9 +244,14 @@ export class DocumentsService {
     }
 
     // 6 Gửi thông báo (nếu có module Notification)
-    // if (facultyId) await this.notificationService.notifyFacultySubscribers(facultyId, savedDoc);
-    // if (subjectId) await this.notificationService.notifySubjectSubscribers(subjectId, savedDoc);
-
+    const documentId: string = savedDoc.id;
+    const docName: string = savedDoc.title;
+    this.NotificationsService.sendNewDocumentNotification(
+      documentId,
+      facultyId,
+      subjectId,
+      docName
+    );
     // 7️ Tạo link download tạm thời
     const downloadUrl = await this.s3Service.getPresignedDownloadUrl(fileKey);
 

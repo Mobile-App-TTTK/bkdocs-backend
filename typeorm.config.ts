@@ -7,7 +7,7 @@ import { Document } from '@modules/documents/entities/document.entity';
 import { Rating } from '@modules/ratings/entities/rating.entity';
 import { Subject } from '@modules/documents/entities/subject.entity';
 import { Faculty } from '@modules/documents/entities/falcuty.entity';
-import { Notification } from '@modules/users/entities/notification.entity';
+import { Notification } from '@modules/notifications/entities/notification.entity';
 import { Comment } from '@modules/comments/entities/comment.entity';
 // Hàm đọc biến môi trường (ưu tiên Docker secrets)
 function getEnv(key: string, defaultValue?: string): string | undefined {
@@ -43,9 +43,7 @@ export default new DataSource({
   //   Notification,
   //   Comment,
   // ],
-  migrations: isProd
-    ? [path.join(__dirname, 'src/migrations/*.{js,ts}')]
-    : ['src/migrations/*.ts'],
+  migrations: isProd ? [path.join(__dirname, 'src/migrations/*.{js,ts}')] : ['src/migrations/*.ts'],
   synchronize: false, // KHÔNG bao giờ bật trong prod
   logging: !isProd, // log khi dev
 });
