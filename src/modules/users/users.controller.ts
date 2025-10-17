@@ -6,8 +6,9 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 // Guards
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Roles } from '@common/decorators/role.decorator';
-import { UserRole } from '@common/enums/user-role.enums';
+import { UserRole } from '@common/enums/user-role.enum';
 import { RolesGuard } from '@common/guards/role.guard';
+
 @ApiTags('users')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RolesGuard)

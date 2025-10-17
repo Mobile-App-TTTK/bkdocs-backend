@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToMany, JoinTable, ManyToOne, JoinColumn, OneToOne } from 'typeorm';
-import { UserRole } from '@common/enums/user-role.enums';
+import { UserRole } from '@common/enums/user-role.enum';
 import { Notification } from '@modules/users/entities/notification.entity';
 import { Document } from '@modules/documents/entities/document.entity';
 import { Subject } from '@modules/documents/entities/subject.entity';
@@ -7,6 +7,7 @@ import { Faculty } from '@modules/documents/entities/falcuty.entity';
 import { Rating } from '@modules/ratings/entities/rating.entity';
 import { Comment } from '@modules/comments/entities/comment.entity';
 import { PasswordReset } from '@modules/auth/entities/password_resets.entity';
+
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')

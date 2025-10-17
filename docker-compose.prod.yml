@@ -5,16 +5,19 @@ services:
       POSTGRES_USER: ${DATABASE_USER}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
       POSTGRES_DB: ${DATABASE_NAME}
+    ports:
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
       - mobile-net   # 👈 gán vào mạng riêng
+
   nestjs:
     image: 528192012668.dkr.ecr.ap-southeast-1.amazonaws.com/mobile-app-backend:latest
     env_file:
       - .env.prod
     ports:
-      - "80:8080"
+      - "8080:8080"
     depends_on:
       - postgres
     networks:
@@ -22,7 +25,6 @@ services:
 
 volumes:
   pgdata:
-
 networks:
   mobile-net:       # 👈 network kiểu bridge
     driver: bridge

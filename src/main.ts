@@ -3,7 +3,7 @@ import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import { AllExceptionsFilter } from '@common/filters/http-exception.filter';
-import { TransformInterceptor } from '@common/interceptors/transform.interceptor';
+import { ResponseInterceptor } from '@common/interceptors/transform.interceptor';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
@@ -34,7 +34,7 @@ async function bootstrap() {
   SwaggerModule.setup('api-docs', app, document);
 
   app.useGlobalFilters(new AllExceptionsFilter());
-  app.useGlobalInterceptors(new TransformInterceptor());
+  app.useGlobalInterceptors(new ResponseInterceptor());
   await app.listen(process.env.PORT ?? 8080);
   console.log(`Server running on http://localhost:${process.env.PORT}`);
   console.log(`Swagger docs on http://localhost:${process.env.PORT}/api-docs`);

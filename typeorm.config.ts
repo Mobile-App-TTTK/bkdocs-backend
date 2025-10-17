@@ -2,7 +2,13 @@ import { DataSource } from 'typeorm';
 import { config } from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
-
+import { User } from '@modules/users/entities/user.entity';
+import { Document } from '@modules/documents/entities/document.entity';
+import { Rating } from '@modules/ratings/entities/rating.entity';
+import { Subject } from '@modules/documents/entities/subject.entity';
+import { Faculty } from '@modules/documents/entities/falcuty.entity';
+import { Notification } from '@modules/users/entities/notification.entity';
+import { Comment } from '@modules/comments/entities/comment.entity';
 // Hàm đọc biến môi trường (ưu tiên Docker secrets)
 function getEnv(key: string, defaultValue?: string): string | undefined {
   const filePath = process.env[`${key}`]; // VD: DATABASE_PASSWORD_FILE=/run/secrets/db_password
@@ -27,13 +33,19 @@ export default new DataSource({
   database: getEnv('DATABASE_NAME', 'mobileappdb'),
 
   // Prod dùng file build (dist), Dev dùng src
-  entities: isProd
-    ? [path.join(__dirname, '/**/*.entity.{js,ts}')]
-    : ['src/**/*.entity.ts'],
+  entities: ['src/**/*.entity.ts'],
+  // entities: [
+  //   User,
+  //   Document,
+  //   Rating,
+  //   Subject,
+  //   Faculty,
+  //   Notification,
+  //   Comment,
+  // ],
   migrations: isProd
-    ? [path.join(__dirname, '/migrations/*.{js,ts}')]
+    ? [path.join(__dirname, 'src/migrations/*.{js,ts}')]
     : ['src/migrations/*.ts'],
-
   synchronize: false, // KHÔNG bao giờ bật trong prod
   logging: !isProd, // log khi dev
 });

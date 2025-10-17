@@ -30,4 +30,3 @@ export class Comment {
   @JoinColumn({ name: 'document_id' })
   document: Document;
 }
-
