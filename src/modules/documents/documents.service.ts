@@ -7,8 +7,9 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Document } from './entities/document.entity';
-import { S3Service } from '@modules/s3/s3.service';
 import { DetailsDocumentResponseDto } from './dtos/responses/detailsDocument.response.dto';
+import { SearchDocumentsDto } from './dtos/responses/search-documents.dto';
+import { S3Service } from '@modules/s3/s3.service';
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
@@ -18,6 +19,42 @@ export class DocumentsService {
     private readonly documentRepo: Repository<Document>,
     private readonly s3Service: S3Service
   ) {}
+
+  async search(q: SearchDocumentsDto): Promise<(Document & { rank?: number })[]> {
+    console.log('Repo tablePath:', this.documentRepo.metadata.tablePath);
+
+    const qb = this.documentRepo
+      .createQueryBuilder('d')
+      .leftJoinAndSelect('d.subject', 'subject')
+      .leftJoinAndSelect('d.faculty', 'faculty');
+
+    const orPredicates: string[] = [];
+    const params: Record<string, any> = {};
+
+    if (q.faculty && q.faculty.trim()) {
+      params.facultyName = `%${q.faculty.trim()}%`;
+      orPredicates.push('LOWER(faculty.name) LIKE LOWER(:facultyName)');
+    }
+
+    if (q.subject && q.subject.trim()) {
+      params.subjectName = `%${q.subject.trim()}%`;
+      orPredicates.push('LOWER(subject.name) = LOWER(:subjectName)');
+    }
+
+    if (q.keyword && q.keyword.trim()) {
+      params.kw = `%${q.keyword.trim()}%`;
+      orPredicates.push(
+        '(LOWER(d.title) LIKE LOWER(:kw) OR LOWER(d.description) LIKE LOWER(:kw) OR LOWER(d.file_key) LIKE LOWER(:kw))'
+      );
+    }
+
+    if (orPredicates.length > 0) {
+      qb.where(orPredicates.shift()!, params);
+      for (const p of orPredicates) qb.orWhere(p, params);
+    }
+
+    return qb.getMany();
+  }
 
   async getDownloadUrl(id: string): Promise<string> {
     const document = await this.documentRepo.findOne({ where: { id } });
@@ -40,11 +77,6 @@ export class DocumentsService {
   }
 
   async getDocumentById(id: string): Promise<DetailsDocumentResponseDto> {
-    // join images table to get all images of the documen
-    // get name of subject, faculty and uploader (user)
-    // return document with all images, subject, faculty and uploader info
-    // overall rating wwil be calculated
-    // return image wwith full URL in images just save the key => (presigned URL) on s3
     const document: Document | null = await this.documentRepo.findOne({
       where: { id },
       relations: ['subject', 'faculty', 'uploader', 'ratings', 'images'],
