@@ -40,7 +40,9 @@ import { APP_GUARD, Reflector } from '@nestjs/core';
     RatesModule,
 
     S3Module,
+
     DocumentsModule,
+
     CommentsModule,
   ],
   controllers: [AppController],

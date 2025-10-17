@@ -14,6 +14,9 @@ import { S3Module } from '@modules/s3/s3.module';
 @Module({
   controllers: [DocumentsController],
   providers: [DocumentsService, ConfigService],
-  imports: [S3Module, TypeOrmModule.forFeature([Document, Subject, Faculty, User, Rating, Image])],
+  imports: [
+    S3Module,
+    TypeOrmModule.forFeature([Document, User, Subject, Faculty, User, Rating, Image]),
+  ],
 })
 export class DocumentsModule {}

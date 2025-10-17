@@ -53,11 +53,11 @@ export class User {
   notifications: Notification[];
 
   @ManyToMany(() => Subject, (subject) => subject.subscribers)
-  @JoinTable({ name: 'user_subjects' })
+  @JoinTable({ name: 'subject_subscriptions' })
   subscribedSubjects: Subject[];
 
   @ManyToMany(() => Faculty, (faculty) => faculty.subscribers)
-  @JoinTable({ name: 'user_faculties' })
+  @JoinTable({ name: 'falcuty_subscriptions' })
   subscribedFaculties: Faculty[];
 
   @OneToMany(() => Rating, (rating) => rating.user)
