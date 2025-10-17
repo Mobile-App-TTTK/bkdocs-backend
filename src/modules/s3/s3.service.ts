@@ -10,9 +10,11 @@ import {
   HeadBucketCommand,
   CreateBucketCommand,
   GetObjectCommand,
+  PutObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class S3Service implements OnModuleInit {
@@ -67,6 +69,25 @@ export class S3Service implements OnModuleInit {
     } catch (error) {
       this.logger.error(`Failed to generate presigned URL: ${error.message}`);
       throw new InternalServerErrorException('Cannot generate download URL');
+    }
+  }
+
+  async uploadFile(file: Express.Multer.File, folder = 'documents'): Promise<string> {
+    try {
+      const key = `${folder}/${Date.now()}-${randomUUID()}-${file.originalname}`;
+
+      const command = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      });
+
+      await this.s3Client.send(command);
+      return key;
+    } catch (err) {
+      console.error('Upload to S3 failed:', err);
+      throw new InternalServerErrorException('Không thể tải file lên S3');
     }
   }
 }

@@ -29,7 +29,7 @@ export class Document {
   @Column({ name: 'file_key' })
   fileKey: string;
 
-  @Column({name: 'thumbnail_key', nullable: true})
+  @Column({ name: 'thumbnail_key', nullable: true })
   thumbnailKey: string;
 
   @Column({ name: 'download_count', default: 0 })

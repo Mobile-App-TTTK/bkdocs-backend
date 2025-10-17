@@ -8,30 +8,33 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
-    // Swagger config
+  // Swagger config
   const config = new DocumentBuilder()
     .setTitle(' Mobile App API - Quản lý tài liệu học tập')
-    .setDescription(`
+    .setDescription(
+      `
       API cho ứng dụng mobile quản lý tài liệu học tập của sinh viên Đại học Bách Khoa.  
-    `)
+    `
+    )
     .setVersion('1.0.0')
     .addBearerAuth(
-      { 
-        type: 'http', 
-        scheme: 'bearer', 
-        bearerFormat: 'JWT', 
-        name: 'JWT', 
-        in: 'header', 
-        description: 'Nhập JWT token' 
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        in: 'header',
+        description: 'Nhập JWT token',
       },
-      'JWT-auth', // tên schema
+      'JWT-auth' // tên schema
     )
 
     .build();
 
-
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api-docs', app, document);
+  SwaggerModule.setup('api-docs', app, document, {
+    swaggerOptions: { persistAuthorization: true },
+  });
 
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalInterceptors(new ResponseInterceptor());

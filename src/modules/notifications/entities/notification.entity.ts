@@ -7,6 +7,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { User } from '@modules/users/entities/user.entity';
+import { NotificationType } from '@common/enums/notification-type.enum';
 
 @Entity('notifications')
 export class Notification {
@@ -18,6 +19,16 @@ export class Notification {
 
   @Column({ name: 'is_read', default: false })
   isRead: boolean;
+
+  @Column({
+    type: 'enum',
+    enum: NotificationType,
+    default: NotificationType.DOCUMENT,
+  })
+  type: string;
+
+  @Column({ name: 'target_id', nullable: true })
+  targetId: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

@@ -7,28 +7,46 @@ import {
   UseGuards,
   BadRequestException,
   Req,
+  Post,
+  UseInterceptors,
+  Body,
+  UploadedFiles,
+  Delete,
 } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
-import { ApiBearerAuth, ApiTags, ApiParam, ApiOkResponse, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiTags,
+  ApiParam,
+  ApiOkResponse,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { DownloadDocumentUrlResponseDto } from './dtos/responses/downloadDocumentUrl.response.dto';
 import { ApiResponseSwaggerWrapper } from '@common/decorators/api-response-swagger-wapper.decorator';
 import { ApiErrorResponseSwaggerWrapper } from '@common/decorators/api-error-response-swagger-wapper.decorator';
 import { Document } from '@modules/documents/entities/document.entity';
 import { DetailsDocumentResponseDto } from './dtos/responses/detailsDocument.response.dto';
 import { SearchDocumentsDto } from './dtos/responses/search-documents.dto';
+import { SuggestDocumentsResponseDto } from './dtos/responses/suggestDocument.response.dto';
 import { Public } from '@common/decorators/public.decorator';
-import { Subject } from './entities/subject.entity';
-
-// @Public()
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { AllFacultiesAndSubjectsDto } from './dtos/responses/allFalcutiesAndSubjects.response.dto';
+import { DocumentResponseDto } from './dtos/responses/document.response.dto';
+import { subscribe } from 'diagnostics_channel';
+import { Subject } from 'typeorm/persistence/Subject';
 @ApiTags('documents')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard)
 @Controller('documents')
 export class DocumentsController {
-  private readonly logger = new Logger(DocumentsController.name);
-
-  constructor(private readonly documentsService: DocumentsService) {}
+  constructor(
+    private readonly documentsService: DocumentsService,
+    private readonly logger: Logger
+  ) {}
 
   @Get('search')
   @ApiOkResponse({ type: [Document] })
@@ -68,19 +86,116 @@ export class DocumentsController {
     description: 'ID của tài liệu cần tải xuống',
     example: '884330b0-3ab1-4ca3-a0f2-3929c9c39933',
   })
-  // {
-  //   "statusCode": 200,
-  //   "success": true,
-  //   "data": {
-  //     "url": "https://bkdocs-hcmut.s3.ap-southeast-1.amazonaws.com/Giao_trinh_GT1.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAXV6VSQF6CSGKZP77%2F20251015%2Fap-southeast-1%2Fs3%2Faws4_request&X-Amz-Date=20251015T003223Z&X-Amz-Expires=3600&X-Amz-Signature=bd7e46fc06eefebbe6c4bfea4f9260c5b27acf6edbb1726cf1692952c80f318c&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject"
-  //   }
-  // }
   @ApiResponseSwaggerWrapper(DownloadDocumentUrlResponseDto)
   @ApiErrorResponseSwaggerWrapper()
   async download(@Param('id') id: string): Promise<DownloadDocumentUrlResponseDto> {
+    this.logger.log(`Tạo URL tải xuống cho tài liệu ID: ${id}`);
     const url: string = await this.documentsService.getDownloadUrl(id);
     return new DownloadDocumentUrlResponseDto({ url });
-    // return url;
+  }
+
+  @ApiOperation({ description: 'Lấy 3 tài liệu nhiều lượt tải nhất' })
+  @ApiResponseSwaggerWrapper(SuggestDocumentsResponseDto)
+  @ApiErrorResponseSwaggerWrapper()
+  @Public()
+  @Get('suggestions')
+  async getSuggestions(): Promise<SuggestDocumentsResponseDto> {
+    this.logger.log('Lấy gợi ý tài liệu cho người dùng không đăng nhập');
+    return this.documentsService.getSuggestions();
+  }
+
+  @ApiOperation({ description: 'Lấy 6 tài liệu theo khoa của user' })
+  @ApiResponseSwaggerWrapper(SuggestDocumentsResponseDto)
+  @ApiErrorResponseSwaggerWrapper()
+  @Get('user/suggestions')
+  async getUserSuggestions(@Req() req: any): Promise<SuggestDocumentsResponseDto> {
+    this.logger.log(`Lấy gợi ý tài liệu cho người dùng ID: ${req.user.id}`);
+    const userId: string = req.user.id;
+    return this.documentsService.getUserSuggestions(userId);
+  }
+
+  @Post('upload')
+  @ApiOperation({ description: 'Upload tài liệu lên' })
+  @ApiResponseSwaggerWrapper(DocumentResponseDto, { status: 201 })
+  @ApiErrorResponseSwaggerWrapper()
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'file', maxCount: 1 },
+        { name: 'thumbnailFile', maxCount: 1 },
+        { name: 'images', maxCount: 6 },
+      ],
+      {
+        limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+        fileFilter: (req, file, cb) => {
+          const allowedMimeTypes = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-excel',
+            'image/jpeg',
+            'image/png',
+            'image/gif',
+          ];
+
+          if (!allowedMimeTypes.includes(file.mimetype)) {
+            return cb(
+              new BadRequestException(`File loại ${file.mimetype} không được hỗ trợ`),
+              false
+            );
+          }
+
+          cb(null, true); // cho phép file hợp lệ
+        },
+      }
+    )
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        facultyId: { type: 'string', example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' },
+        subjectId: { type: 'string', example: 'c9b1d5f4-3e2a-4d5b-8f4d-1c2b3a4d5e6f' },
+        description: { type: 'string', example: 'Tài liệu về cơ sở dữ liệu' },
+        thumbnailFile: { type: 'string', format: 'binary' },
+        images: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+  })
+  async uploadFile(
+    @UploadedFiles()
+    files: {
+      file?: Express.Multer.File[];
+      thumbnailFile?: Express.Multer.File;
+      images?: Express.Multer.File[];
+    },
+    @Body('facultyId') facultyId: string,
+    @Body('subjectId') subjectId: string,
+    @Body('description') description: string,
+    @Req() req: any
+  ): Promise<DocumentResponseDto> {
+    this.logger.log(`Người dùng ID: ${req.user.id} đang tải lên tài liệu mới`);
+    const userId = req.user.id;
+    if (!files.file?.length) throw new BadRequestException('Thiếu file tài liệu chính');
+
+    return this.documentsService.uploadDocument(
+      files.file[0],
+      files.images || [],
+      userId,
+      files.thumbnailFile,
+      facultyId,
+      subjectId,
+      description
+    );
   }
 
   @Get(':id')
@@ -92,14 +207,17 @@ export class DocumentsController {
   })
   @ApiResponseSwaggerWrapper(DetailsDocumentResponseDto)
   @ApiErrorResponseSwaggerWrapper()
-  async getDocumentById(@Param('id') id: string) : Promise<DetailsDocumentResponseDto> {
-      const document = await this.documentsService.getDocumentById(id);
-      return document;
+  async getDocumentById(@Param('id') id: string): Promise<DetailsDocumentResponseDto> {
+    this.logger.log(`Lấy thông tin chi tiết cho tài liệu ID: ${id}`);
+    const document = await this.documentsService.getDocumentById(id);
+    return document;
   }
 
-  // @Public()
-  // @Get('/suggestions')
-  // async getSuggestions(): Promise<SuggestDocumentResponseDto> {
-  //   return this.documentsService.getSuggestions();
-  // }
+  @ApiResponseSwaggerWrapper(AllFacultiesAndSubjectsDto)
+  @ApiErrorResponseSwaggerWrapper()
+  @Get('falculties-subjects/all')
+  async getAllFacultiesAndSubjects(): Promise<AllFacultiesAndSubjectsDto> {
+    this.logger.log('Lấy tất cả khoa và môn học');
+    return this.documentsService.getAllFacultiesAndSubjects();
+  }
 }

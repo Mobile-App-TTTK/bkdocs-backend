@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -9,8 +9,9 @@ import { DataSource } from 'typeorm';
 import { S3Module } from '@modules/s3/s3.module';
 import { DocumentsModule } from '@modules/documents/documents.module';
 import { CommentsModule } from '@modules/comments/comments.module';
-import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
-import { APP_GUARD, Reflector } from '@nestjs/core';
+import { Reflector } from '@nestjs/core';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { LoggerModule } from './modules/logger/logger.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -40,8 +41,14 @@ import { APP_GUARD, Reflector } from '@nestjs/core';
     RatesModule,
 
     S3Module,
+
     DocumentsModule,
+
     CommentsModule,
+
+    NotificationsModule,
+
+    LoggerModule,
   ],
   controllers: [AppController],
   providers: [AppService, Reflector],
@@ -49,7 +56,7 @@ import { APP_GUARD, Reflector } from '@nestjs/core';
 export class AppModule {
   constructor(private dataSource: DataSource) {
     console.log(
-      '✅ Connected entities:',
+      'Connected entities:',
       this.dataSource.entityMetadatas.map((m) => m.name)
     );
   }

@@ -4,13 +4,13 @@ import {
   InternalServerErrorException,
   NotFoundException,
   BadRequestException,
+  Inject,
   Req,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, ILike, Repository } from 'typeorm';
+import { Brackets, ILike, Repository, DeepPartial } from 'typeorm';
+
 import { Document } from './entities/document.entity';
-import { Subject } from './entities/subject.entity';
-import { Faculty } from './entities/falcuty.entity';
 import { DetailsDocumentResponseDto } from './dtos/responses/detailsDocument.response.dto';
 import { SearchDocumentsDto } from './dtos/responses/search-documents.dto';
 import { S3Service } from '@modules/s3/s3.service';
@@ -18,6 +18,19 @@ import { FacultyYearSubject } from './entities/faculty-year-subject.entity';
 import { UsersService } from '@modules/users/user.service';
 
 
+import {
+  SuggestDocumentResponseDto,
+  SuggestDocumentsResponseDto,
+} from './dtos/responses/suggestDocument.response.dto';
+import { User } from '@modules/users/entities/user.entity';
+import { Faculty } from '@modules/documents/entities/falcuty.entity';
+import { Subject } from '@modules/documents/entities/subject.entity';
+import { AllFacultiesAndSubjectsDto } from './dtos/responses/allFalcutiesAndSubjects.response.dto';
+import { DocumentResponseDto } from './dtos/responses/document.response.dto';
+import { Image } from './entities/image.entity';
+import { NotificationsService } from '@modules/notifications/notifications.service';
+import { NotificationType } from '@common/enums/notification-type.enum';
+import { CreateNotificationDto } from '@modules/notifications/dto/create-notification.dto';
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
@@ -25,13 +38,18 @@ export class DocumentsService {
   constructor(
     @InjectRepository(Document)
     private readonly documentRepo: Repository<Document>,
-    @InjectRepository(Subject)
-    private readonly subjectRepo: Repository<Subject>,
-    @InjectRepository(Faculty)
-    private readonly facultyRepo: Repository<Faculty>,
-    private readonly s3Service: S3Service,
     @InjectRepository(FacultyYearSubject) private readonly fysRepo: Repository<FacultyYearSubject>,
     private readonly usersService: UsersService,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+    @InjectRepository(Faculty)
+    private readonly facultyRepo: Repository<Faculty>,
+    @InjectRepository(Subject)
+    private readonly subjectRepo: Repository<Subject>,
+    @InjectRepository(Image)
+    private readonly imageRepo: Repository<Image>,
+    private readonly s3Service: S3Service,
+    private readonly NotificationsService: NotificationsService
   ) {}
   
   async search(q: SearchDocumentsDto): Promise<(Document & { rank?: number })[]> {
@@ -124,9 +142,9 @@ export class DocumentsService {
     if (!fileKey) {
       throw new NotFoundException(`Document "${id}" does not have an attached file`);
     }
-
     const url = await this.s3Service.getPresignedDownloadUrl(fileKey, fileName, isDownload);
-
+    document.downloadCount++;
+    this.documentRepo.save(document);
     this.logger.log(` Generated presigned URL for document: ${id}`);
     return url;
   }
@@ -186,5 +204,150 @@ export class DocumentsService {
     });
 
     return maps.map((m) => m.subject).filter(Boolean);
+  }
+  
+  async getSuggestions(): Promise<SuggestDocumentsResponseDto> {
+    // limited to top 3 suggestion for simplicity
+
+    const suggestedDocuments: Document[] | null = await this.documentRepo.find({
+      order: { downloadCount: 'DESC' },
+      take: 3,
+    });
+
+    if (!suggestedDocuments) {
+      throw new NotFoundException('No documents found for suggestions');
+    }
+    const documents: SuggestDocumentResponseDto[] = suggestedDocuments.map(
+      (suggestedDocument) =>
+        new SuggestDocumentResponseDto({
+          id: suggestedDocument.id,
+          title: suggestedDocument.title,
+          uploadDate: suggestedDocument.uploadDate,
+          downloadCount: suggestedDocument.downloadCount,
+        })
+    );
+    return new SuggestDocumentsResponseDto({
+      documents,
+    });
+  }
+
+  async getUserSuggestions(userId: string): Promise<SuggestDocumentsResponseDto> {
+    const user: User | null = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['faculty'],
+    });
+    if (!user) {
+      throw new NotFoundException(`User with ID "${userId}" not found`);
+    }
+    // Placeholder logic for user-specific suggestions
+    const suggestedDocuments: Document[] | null = await this.documentRepo.find({
+      order: { downloadCount: 'DESC' },
+      where: { faculty: user.faculty },
+      take: 10,
+    });
+
+    const documents: SuggestDocumentResponseDto[] = suggestedDocuments.map(
+      (suggestedDocument) =>
+        new SuggestDocumentResponseDto({
+          id: suggestedDocument.id,
+          title: suggestedDocument.title,
+          uploadDate: suggestedDocument.uploadDate,
+          downloadCount: suggestedDocument.downloadCount,
+        })
+    );
+    if (!suggestedDocuments) {
+      throw new NotFoundException('No documents found for suggestions');
+    }
+
+    return new SuggestDocumentsResponseDto({
+      documents,
+    });
+  }
+
+  async uploadDocument(
+    file: Express.Multer.File,
+    images: Express.Multer.File[],
+    userId: string,
+    thumbnailFile?: Express.Multer.File,
+    facultyId?: string,
+    subjectId?: string,
+    description?: string
+  ): Promise<DocumentResponseDto> {
+    if (!file) throw new BadRequestException('Thiếu file tải lên.');
+
+    // 1️ Kiểm tra user
+    const uploaderUser = await this.userRepo.findOneBy({ id: userId });
+    if (!uploaderUser) {
+      throw new NotFoundException(`Uploader with ID "${userId}" not found`);
+    }
+
+    // 2️ Upload file chính lên S3
+    const fileKey = await this.s3Service.uploadFile(file, 'documents');
+    this.logger.debug(`Uploaded fileKey = ${fileKey}`);
+
+    // 3️ Upload thumbnail nếu có
+    let thumbnailKey: string | null = null;
+    if (thumbnailFile) {
+      thumbnailKey = await this.s3Service.uploadFile(thumbnailFile, 'thumbnails');
+    }
+
+    // 4️ Tạo Document entity
+    const falcuty = facultyId ? await this.facultyRepo.findOneBy({ id: facultyId }) : null;
+    const subject = subjectId ? await this.subjectRepo.findOneBy({ id: subjectId }) : null;
+    const doc = this.documentRepo.create({
+      title: file.originalname,
+      description: description || null,
+      fileKey,
+      thumbnailKey,
+      uploader: uploaderUser,
+      faculty: facultyId ? falcuty : null,
+      subject: subjectId ? subject : null,
+      status: 'pending',
+    } as DeepPartial<Document>);
+
+    const savedDoc = await this.documentRepo.save(doc);
+
+    //  Upload images liên quan (nếu có)
+    if (images?.length) {
+      const imageEntities: Image[] = [];
+
+      for (const img of images) {
+        const imgKey = await this.s3Service.uploadFile(img, 'images');
+        imageEntities.push(this.imageRepo.create({ fileKey: imgKey, document: savedDoc }));
+      }
+
+      await this.imageRepo.save(imageEntities);
+    }
+
+    // 6 Gửi thông báo (nếu có module Notification)
+    const documentId: string = savedDoc.id;
+    const docName: string = savedDoc.title;
+    this.NotificationsService.sendNewDocumentNotification(
+      documentId,
+      facultyId,
+      subjectId,
+      docName
+    );
+    // 7️ Tạo link download tạm thời
+    const downloadUrl = await this.s3Service.getPresignedDownloadUrl(fileKey);
+
+    return new DocumentResponseDto({
+      id: savedDoc.id,
+      title: savedDoc.title,
+      description: savedDoc.description,
+      fileKey: savedDoc.fileKey,
+      thumbnailKey: savedDoc.thumbnailKey,
+      uploadDate: savedDoc.uploadDate,
+      downloadUrl,
+    });
+  }
+
+  async getAllFacultiesAndSubjects(): Promise<AllFacultiesAndSubjectsDto> {
+    const faculties = await this.facultyRepo.find();
+    const subjects = await this.subjectRepo.find();
+    return new AllFacultiesAndSubjectsDto({
+      faculties: faculties.map((f) => ({ id: f.id, name: f.name })),
+      subjects: subjects.map((s) => ({ id: s.id, name: s.name })),
+    });
   }
 }

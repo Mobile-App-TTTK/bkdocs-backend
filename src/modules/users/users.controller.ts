@@ -15,11 +15,11 @@ import { RolesGuard } from '@common/guards/role.guard';
 @Roles(UserRole.ADMIN)
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
 @Controller('users')
 export class UsersController {
   constructor(private userService: UsersService) {}
 
+  @Roles(UserRole.ADMIN)
   @Get()
   async getAllUsers(): Promise<User[]> {
     return this.userService.getAllUsers();
