@@ -26,4 +26,7 @@ export class Faculty {
   /** Nhiều người dùng có thể theo dõi nhiều khoa */
   @ManyToMany(() => User, (user) => user.subscribedFaculties)
   subscribers: User[];
+
+  @OneToMany(() => User, (user) => user.faculty)
+  users: User[];
 }

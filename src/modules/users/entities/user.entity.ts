@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToMany, JoinTable } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToMany, JoinTable, ManyToOne, JoinColumn } from 'typeorm';
 import { UserRole } from '@common/enums/user-role.enum';
 import { Notification } from '@modules/users/entities/notification.entity';
 import { Document } from '@modules/documents/entities/document.entity';
@@ -52,4 +52,11 @@ export class User {
 
   @OneToMany(() => Comment, (comment) => comment.document)
   comments: Comment[];
+
+  @ManyToOne(() => Faculty, (faculty) => faculty.users)
+  @JoinColumn({ name: 'faculty_id' })
+  faculty: Faculty;
+
+  @Column({name: 'image_key', nullable: true})
+  imageKey: string;
 }

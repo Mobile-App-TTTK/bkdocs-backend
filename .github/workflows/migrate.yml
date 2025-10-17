@@ -6,6 +6,7 @@ on:
 jobs:
   run_migration:
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - name: Run migrations on EC2
         uses: appleboy/ssh-action@v0.1.7

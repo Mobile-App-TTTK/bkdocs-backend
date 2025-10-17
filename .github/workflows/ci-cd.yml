@@ -54,10 +54,14 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Verify typeorm.config.ts version
+        run: |
+          echo "===== typeorm.config.ts HEAD content ====="
+          grep migrations typeorm.config.ts
       - name: Build Docker image
         run: |
           IMAGE_TAG=latest
-          docker build -t ${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG .
+          docker build --no-cache -t ${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG .
 
       - name: Verify dist/main.js exists in image
         run: |
@@ -102,7 +106,7 @@ jobs:
           source: ".env.prod"
           target: "~/mobile-app/"
 
-      - name: Deploy over SSH
+      - name: Deploy to EC2 (clean old image + pull new)
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -111,35 +115,26 @@ jobs:
           script: |
             cd ~/mobile-app
 
-            # Ensure Docker & Docker Compose installed
-            if ! command -v docker &> /dev/null; then
-              curl -fsSL https://get.docker.com | sh
-              sudo usermod -aG docker ubuntu
-            fi
-            if ! command -v docker compose &> /dev/null; then
-              sudo apt-get update && sudo apt-get install -y docker-compose-plugin
-            fi
+            echo "🧹 Dừng container cũ..."
+            docker compose --env-file .env.prod -f docker-compose.prod.yml down || true
 
-            # Ensure Docker daemon is running
-            if ! pgrep dockerd > /dev/null; then
-              echo "Starting Docker..."
-              sudo systemctl start docker
-            fi
-            sudo systemctl enable docker
+            echo "🧼 Xóa image cũ..."
+            docker rmi $(docker images -q 528192012668.dkr.ecr.ap-southeast-1.amazonaws.com/mobile-app-backend:latest) || true
 
-            # Export AWS credentials
-            export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-            export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            export AWS_DEFAULT_REGION=ap-southeast-1
-
-            # Login ECR
+            echo "🔐 Login vào ECR..."
             aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin ${{ secrets.ECR_REPOSITORY }}
 
-            # Pull image mới
-            docker compose --env-file .env.prod -f docker-compose.prod.yml pull 
+            echo "📦 Kéo image mới nhất..."
+            docker compose --env-file .env.prod -f docker-compose.prod.yml pull --no-cache
 
-            # Start container backend + postgres
-            docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+            echo "🚀 Khởi động lại container..."
+            docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate
 
-            # Run migrations
-            # docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T nestjs npm run migration:run:prod
+            echo "🧽 Xóa tất cả image cũ không còn dùng..."
+            docker image prune -a -f
+
+            echo "🧱 Xóa cache & dangling layers..."
+            docker system prune -f
+
+            echo "✅ Kiểm tra digest hiện tại:"
+            docker inspect 528192012668.dkr.ecr.ap-southeast-1.amazonaws.com/mobile-app-backend:latest | grep sha256 || true
