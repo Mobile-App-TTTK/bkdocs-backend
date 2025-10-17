@@ -115,14 +115,14 @@ jobs:
           script: |
             cd ~/mobile-app
 
-            echo "🧹 Dừng container cũ..."
-            docker compose -f docker-compose.prod.yml stop backend
+            # echo "🧹 Dừng container cũ..."
+            # docker compose -f docker-compose.prod.yml stop backend
 
-            echo "🧽 Xóa tất cả image cũ không còn dùng..."
-            docker image prune -a -f
+            # echo "🧽 Xóa tất cả image cũ không còn dùng..."
+            # docker image prune -a -f
 
-            echo "🧱 Xóa cache & dangling layers..."
-            docker system prune -f
+            # echo "🧱 Xóa cache & dangling layers..."
+            # docker system prune -f
 
             echo "🔐 Login vào ECR..."
             aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin ${{ secrets.ECR_REPOSITORY }}
