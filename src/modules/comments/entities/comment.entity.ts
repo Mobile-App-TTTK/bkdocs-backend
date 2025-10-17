@@ -17,7 +17,7 @@ export class Comment {
   @Column('text')
   content: string;
 
-  @Column({ name: 'created_at', default: () => 'now()'})
+  @Column({ name: 'created_at', default: () => 'now()' })
   createdAt: Date;
 
   /** Người bình luận */

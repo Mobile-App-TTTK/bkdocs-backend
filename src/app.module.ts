@@ -3,18 +3,18 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AuthModule } from './modules/auth/auth.module';
-import { RolesGuard } from '@common/guards/role.guard';
-
-import { DocumentsModule } from './modules/documents/documents.module';
-import { CommentsModule } from './modules/comments/comments.module';
-import { RatesModule } from './modules/ratings/ratings.module';
+import { AuthModule } from '@modules/auth/auth.module';
+import { RatesModule } from '@modules/ratings/ratings.module';
 import { DataSource } from 'typeorm';
 import { S3Module } from '@modules/s3/s3.module';
+import { DocumentsModule } from '@modules/documents/documents.module';
+import { CommentsModule } from '@modules/comments/comments.module';
+import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
+import { APP_GUARD, Reflector } from '@nestjs/core';
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true,            // dùng ở mọi nơi không cần import lại
+      isGlobal: true, // dùng ở mọi nơi không cần import lại
     }),
 
     // Type orm config
@@ -29,7 +29,7 @@ import { S3Module } from '@modules/s3/s3.module';
         password: config.get<string>('DATABASE_PASSWORD'),
         database: config.get<string>('DATABASE_NAME'),
         autoLoadEntities: true,
-        synchronize: false, 
+        synchronize: false,
       }),
     }),
 
@@ -37,19 +37,20 @@ import { S3Module } from '@modules/s3/s3.module';
 
     DocumentsModule,
 
-    CommentsModule,
-
     RatesModule,
 
     S3Module,
+    DocumentsModule,
+    CommentsModule,
   ],
   controllers: [AppController],
-  providers: [
-    AppService,
-  ],
+  providers: [AppService, Reflector],
 })
 export class AppModule {
-    constructor(private dataSource: DataSource) {
-    console.log('✅ Connected entities:', this.dataSource.entityMetadatas.map(m => m.name));
+  constructor(private dataSource: DataSource) {
+    console.log(
+      '✅ Connected entities:',
+      this.dataSource.entityMetadatas.map((m) => m.name)
+    );
   }
 }

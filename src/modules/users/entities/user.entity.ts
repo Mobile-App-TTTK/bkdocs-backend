@@ -1,4 +1,16 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToMany, JoinTable, ManyToOne, JoinColumn, OneToOne } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+  ManyToMany,
+  JoinTable,
+  ManyToOne,
+  JoinColumn,
+  OneToOne,
+} from 'typeorm';
 import { UserRole } from '@common/enums/user-role.enum';
 import { Notification } from '@modules/users/entities/notification.entity';
 import { Document } from '@modules/documents/entities/document.entity';
@@ -32,7 +44,7 @@ export class User {
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn({name: 'updated_at'})
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
   @OneToMany(() => Document, (document) => document.uploader)
@@ -62,6 +74,6 @@ export class User {
   @JoinColumn({ name: 'faculty_id' })
   faculty: Faculty;
 
-  @Column({name: 'image_key', nullable: true})
+  @Column({ name: 'image_key', nullable: true })
   imageKey: string;
 }

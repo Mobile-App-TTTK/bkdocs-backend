@@ -13,12 +13,15 @@ import { RolesGuard } from '@common/guards/role.guard';
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
+@ApiBearerAuth('JWT-auth')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN)
 @Controller('users')
 export class UsersController {
-    constructor(private userService: UsersService) {}
+  constructor(private userService: UsersService) {}
 
-    @Get()
-    async getAllUsers(): Promise<User[]> {
-        return this.userService.getAllUsers();
-    }
+  @Get()
+  async getAllUsers(): Promise<User[]> {
+    return this.userService.getAllUsers();
+  }
 }

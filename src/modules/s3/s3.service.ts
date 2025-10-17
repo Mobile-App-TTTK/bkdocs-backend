@@ -22,7 +22,7 @@ export class S3Service implements OnModuleInit {
   constructor(
     @Inject('S3_CLIENT')
     private readonly s3Client: S3Client,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService
   ) {
     this.bucketName = this.configService.get<string>('S3_BUCKET', 'bkdocs');
   }
@@ -34,31 +34,38 @@ export class S3Service implements OnModuleInit {
   private async ensureBucketExists() {
     try {
       await this.s3Client.send(new HeadBucketCommand({ Bucket: this.bucketName }));
-      this.logger.log(`📦 Bucket already exists: ${this.bucketName}`);
+      this.logger.log(`Bucket already exists: ${this.bucketName}`);
     } catch (error) {
       if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
         await this.s3Client.send(new CreateBucketCommand({ Bucket: this.bucketName }));
-        this.logger.log(`✅ Created bucket: ${this.bucketName}`);
+        this.logger.log(`Created bucket: ${this.bucketName}`);
       } else {
-        this.logger.error(`❌ Failed to ensure bucket "${this.bucketName}": ${error.message}`);
+        this.logger.error(`Failed to ensure bucket "${this.bucketName}": ${error.message}`);
       }
     }
   }
 
-  /** 📥 Presigned URL để tải file trực tiếp */
-  async getPresignedDownloadUrl(fileName: string, expiresInSeconds = 3600): Promise<string> {
+  /** Presigned URL để tải file trực tiếp */
+  async getPresignedDownloadUrl(
+    fileKey: string,
+    fileName?: string,
+    download = false,
+    expiresInSeconds = 3600
+  ): Promise<string> {
     try {
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
-        Key: fileName,
+        Key: fileKey,
+        ResponseContentDisposition: download
+          ? `attachment; filename="${fileName || 'downloaded-file'}"`
+          : undefined,
       });
-
       const url = await getSignedUrl(this.s3Client, command, { expiresIn: expiresInSeconds });
 
-      this.logger.log(`Generated presigned URL for: ${fileName}`);
+      this.logger.log(`Generated presigned URL for: ${fileKey}`);
       return url;
     } catch (error) {
-      this.logger.error(`❌ Failed to generate presigned URL: ${error.message}`);
+      this.logger.error(`Failed to generate presigned URL: ${error.message}`);
       throw new InternalServerErrorException('Cannot generate download URL');
     }
   }
