@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Query, Logger, UseGuards, BadRequestException } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
-import { ApiBearerAuth, ApiTags, ApiParam, ApiOkResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, ApiParam, ApiOkResponse, ApiQuery } from '@nestjs/swagger';
 import { DownloadDocumentUrlResponseDto } from './dtos/responses/downloadDocumentUrl.response.dto';
 import { ApiResponseSwaggerWrapper } from '@common/decorators/api-response-swagger-wapper.decorator';
 import { ApiErrorResponseSwaggerWrapper } from '@common/decorators/api-error-response-swagger-wapper.decorator';
@@ -31,5 +31,15 @@ export class DocumentsController {
     }
 
     return this.documentsService.search(q);
+  }
+
+  @Get('suggest')
+  @ApiQuery({ name: 'keyword', required: true })
+  @ApiOkResponse({ description: 'Suggest Keyword', type: [String] })
+  async suggest(@Query('keyword') keyword: string): Promise<string[]> {
+    if (!keyword || !keyword.trim()) {
+      throw new BadRequestException('keyword is required');
+    }
+    return this.documentsService.suggest(keyword);
   }
 }

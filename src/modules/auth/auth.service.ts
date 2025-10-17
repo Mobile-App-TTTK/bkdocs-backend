@@ -19,10 +19,10 @@ export class AuthService {
     @InjectRepository(PasswordReset)
     private prRepo: Repository<PasswordReset>,
   ) {
-    this.OTP_TTL_MIN       = this.getNum('OTP_TTL_MIN', 10);
+    this.OTP_TTL_MIN       = this.getNum('OTP_TTL_MIN', 5);
     this.TOKEN_TTL_MIN     = this.getNum('RESET_TOKEN_TTL_MIN', 15);
     this.OTP_MAX_ATTEMPTS  = this.getNum('OTP_MAX_ATTEMPTS', 5);
-    this.OTP_COOLDOWN_SEC  = this.getNum('OTP_COOLDOWN_SEC', 60);
+    this.OTP_COOLDOWN_SEC  = this.getNum('OTP_COOLDOWN_SEC', 120);
     this.BCRYPT_ROUNDS     = this.getNum('BCRYPT_SALT_ROUNDS', 10);
   }
 

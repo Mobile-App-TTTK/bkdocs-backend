@@ -5,8 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 import { Document } from './entities/document.entity';
+import { Subject } from './entities/subject.entity';
+import { Faculty } from './entities/falcuty.entity';
 import { DetailsDocumentResponseDto } from './dtos/responses/detailsDocument.response.dto';
 import { SearchDocumentsDto } from './dtos/responses/search-documents.dto';
 
@@ -17,6 +19,10 @@ export class DocumentsService {
   constructor(
     @InjectRepository(Document)
     private readonly documentRepo: Repository<Document>,
+    @InjectRepository(Subject)
+    private readonly subjectRepo: Repository<Subject>,
+    @InjectRepository(Faculty)
+    private readonly facultyRepo: Repository<Faculty>,
   ) {}
   
   async search(q: SearchDocumentsDto): Promise<(Document & { rank?: number })[]> {
@@ -53,5 +59,53 @@ export class DocumentsService {
     }
 
     return qb.getMany();
+  }
+
+  async suggest(keyword: string): Promise<string[]> {
+    const kw = keyword.trim();
+    if (kw.length < 2) return [];
+
+    const [docs, subs, facs] = await Promise.all([
+      this.documentRepo.find({
+        select: ['id', 'title'],
+        where: { title: ILike(`%${kw}%`) },
+        take: 5,
+        order: { title: 'ASC' },
+      }),
+
+      this.subjectRepo.find({
+        select: ['id', 'name'],
+        where: { name: ILike(`%${kw}%`) },
+        take: 5,
+        order: { name: 'ASC' },
+      }),
+
+      this.facultyRepo.find({
+        select: ['id', 'name'],
+        where: { name: ILike(`%${kw}%`) },
+        take: 5,
+        order: { name: 'ASC' },
+      }),
+    ]);
+
+    type Hit = { name: string };
+    const hits: Hit[] = [
+      ...docs.map(d => ({ name: d.title })),
+      ...subs.map(s => ({ name: s.name })),
+      ...facs.map(f => ({ name: f.name })),
+    ];
+
+    const score = (name: string) => {
+      const n = name.toLowerCase();
+      const k = kw.toLowerCase();
+      const pos = n.indexOf(k);
+      const posScore = pos === -1 ? 999 : pos;          
+      const lenPenalty = Math.abs(n.length - k.length);
+      return posScore * 1000 + lenPenalty;
+    };
+
+    hits.sort((a, b) => score(a.name) - score(b.name));
+
+    return hits.slice(0, 5).map(h => h.name);
   }
 }
