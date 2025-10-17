@@ -28,11 +28,12 @@ export class DocumentsService {
 
     const fileKey: string = document.fileKey;
     const fileName: string = document.title || 'downloaded-file';
+    const isDownload: boolean = true;
     if (!fileKey) {
       throw new NotFoundException(`Document "${id}" does not have an attached file`);
     }
 
-    const url = await this.s3Service.getPresignedDownloadUrl(fileKey, fileName);
+    const url = await this.s3Service.getPresignedDownloadUrl(fileKey, fileName, isDownload);
 
     this.logger.log(` Generated presigned URL for document: ${id}`);
     return url;
@@ -57,6 +58,7 @@ export class DocumentsService {
       document.ratings && document.ratings.length > 0
         ? document.ratings.reduce((sum, rating) => sum + rating.score, 0) / document.ratings.length
         : 0;
+
     const images: string[] = await Promise.all(
       document.images.map(
         async (image) => await this.s3Service.getPresignedDownloadUrl(image.fileKey, image.fileKey)

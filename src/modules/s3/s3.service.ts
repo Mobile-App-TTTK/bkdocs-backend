@@ -49,15 +49,17 @@ export class S3Service implements OnModuleInit {
   async getPresignedDownloadUrl(
     fileKey: string,
     fileName?: string,
+    download = false,
     expiresInSeconds = 3600
   ): Promise<string> {
     try {
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
         Key: fileKey,
-        ResponseContentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(fileName ?? fileKey)}`,
+        ResponseContentDisposition: download
+          ? `attachment; filename="${fileName || 'downloaded-file'}"`
+          : undefined,
       });
-
       const url = await getSignedUrl(this.s3Client, command, { expiresIn: expiresInSeconds });
 
       this.logger.log(`Generated presigned URL for: ${fileKey}`);
