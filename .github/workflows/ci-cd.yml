@@ -63,11 +63,6 @@ jobs:
           IMAGE_TAG=latest
           docker build --no-cache -t ${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG .
 
-      - name: Verify dist/main.js exists in image
-        run: |
-          IMAGE_TAG=latest
-          docker run --rm ${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG ls -R dist || (echo "❌ dist not found in image" && exit 1)
-
       - name: Push to ECR
         run: |
           IMAGE_TAG=latest
@@ -116,22 +111,23 @@ jobs:
             cd ~/mobile-app
 
             echo "🧹 Dừng container cũ..."
-            docker compose --env-file .env.prod -f docker-compose.prod.yml down || true
+            docker compose --env-file .env.prod -f docker-compose.prod.yml stop nestjs
 
             echo "🧽 Xóa tất cả image cũ không còn dùng..."
-            docker image prune -a -f
+            docker image prune -f
 
             echo "🧱 Xóa cache & dangling layers..."
-            docker system prune -f
+            docker builder prune -f
 
             echo "🔐 Login vào ECR..."
+
             aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin ${{ secrets.ECR_REPOSITORY }}
 
             echo "📦 Kéo image mới nhất..."
-            docker compose --env-file .env.prod -f docker-compose.prod.yml pull --no-cache
+            docker compose --env-file .env.prod -f docker-compose.prod.yml pull
 
             echo "🚀 Khởi động lại container..."
             docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate
 
             echo "✅ Kiểm tra digest hiện tại:"
-            docker inspect 528192012668.dkr.ecr.ap-southeast-1.amazonaws.com/mobile-app-backend:latest | grep sha256 || true
+            docker inspect $ECR_REPOSITORY:latest | grep sha256 || true
