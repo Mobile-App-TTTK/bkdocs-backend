@@ -25,12 +25,13 @@ async getDownloadUrl(id: string): Promise<string> {
         throw new NotFoundException(`Document with ID "${id}" not found`);
       }
 
-      const fileKey = document.fileKey;
+      const fileKey: string = document.fileKey;
+      const fileName: string = document.title || 'downloaded-file';
       if (!fileKey) {
         throw new NotFoundException(`Document "${id}" does not have an attached file`);
       }
 
-      const url = await this.s3Service.getPresignedDownloadUrl(fileKey);
+      const url = await this.s3Service.getPresignedDownloadUrl(fileKey, fileName);
 
       this.logger.log(` Generated presigned URL for document: ${id}`);
       return url;
