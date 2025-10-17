@@ -18,6 +18,7 @@ import { Image } from './entities/image.entity';
 import { NotificationsService } from '@modules/notifications/notifications.service';
 import { NotificationType } from '@common/enums/notification-type.enum';
 import { CreateNotificationDto } from '@modules/notifications/dtos/create-notification.dto';
+import { Status } from '@common/enums/status.enum';
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
@@ -272,6 +273,38 @@ export class DocumentsService {
     return new AllFacultiesAndSubjectsDto({
       faculties: faculties.map((f) => ({ id: f.id, name: f.name })),
       subjects: subjects.map((s) => ({ id: s.id, name: s.name })),
+    });
+  }
+
+  async updateDocumentStatus(id: string, status: string): Promise<Document> {
+    const document = await this.documentRepo.findOne({
+      where: { id },
+      relations: ['faculty', 'subject'],
+    });
+    if (!document) throw new NotFoundException('Không tìm thấy tài liệu');
+
+    if (document.status === Status.ACTIVE)
+      throw new BadRequestException('Tài liệu đã được duyệt trước đó');
+
+    document.status = Status.ACTIVE;
+    if (document.faculty || document.subject) {
+      await this.NotificationsService.sendNewDocumentNotification(
+        document.id,
+        document.faculty.id,
+        document.subject.id,
+        document.title
+      );
+    }
+
+    return await this.documentRepo.save(document);
+  }
+
+  async getPendingDocuments(limit: number): Promise<Document[]> {
+    return this.documentRepo.find({
+      where: { status: Status.PENDING },
+      order: { uploadDate: 'DESC' },
+      take: limit,
+      relations: ['uploader', 'faculty', 'subject'], // để admin có thêm thông tin
     });
   }
 }

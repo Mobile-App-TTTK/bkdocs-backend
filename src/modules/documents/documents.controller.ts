@@ -11,7 +11,8 @@ import {
   UseInterceptors,
   Body,
   UploadedFiles,
-  Delete,
+  Patch,
+  NotFoundException,
 } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
@@ -23,6 +24,7 @@ import {
   ApiBody,
   ApiConsumes,
   ApiOperation,
+  ApiResponse,
 } from '@nestjs/swagger';
 import { DownloadDocumentUrlResponseDto } from './dtos/responses/downloadDocumentUrl.response.dto';
 import { ApiResponseSwaggerWrapper } from '@common/decorators/api-response-swagger-wapper.decorator';
@@ -35,10 +37,14 @@ import { Public } from '@common/decorators/public.decorator';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { AllFacultiesAndSubjectsDto } from './dtos/responses/allFalcutiesAndSubjects.response.dto';
 import { DocumentResponseDto } from './dtos/responses/document.response.dto';
-import { subscribe } from 'diagnostics_channel';
+import { RolesGuard } from '@common/guards/role.guard';
+import { Roles } from '@common/decorators/role.decorator';
+import { UserRole } from '@common/enums/user-role.enum';
+import { NotificationsService } from '@modules/notifications/notifications.service';
+import { GetPendingDocumentsDto } from './dtos/requests/getPendingDocument.request.dto';
 @ApiTags('documents')
 @ApiBearerAuth('JWT-auth')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('documents')
 export class DocumentsController {
   constructor(
@@ -179,6 +185,39 @@ export class DocumentsController {
     );
   }
 
+  @ApiErrorResponseSwaggerWrapper()
+  @Get('pending/:limit')
+  @ApiOperation({ summary: 'Lấy danh sách tài liệu đang chờ duyệt' })
+  @ApiParam({ name: 'limit', example: 10 })
+  @ApiResponse({
+    status: 200,
+    description: 'Danh sách tài liệu đang chờ duyệt',
+    type: [Document],
+  })
+  @ApiErrorResponseSwaggerWrapper()
+  async getPendingDocuments(@Param('limit') limit: number): Promise<Document[]> {
+    return this.documentsService.getPendingDocuments(limit || 10);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Duyệt tài liệu đang pending → active và gửi broadcast' })
+  @Patch(':id/approve')
+  async approveDocument(@Param('id') docId: string) {
+    const document = await this.documentsService.updateDocumentStatus(docId, 'ACTIVE');
+
+    return {
+      message: `Đã duyệt tài liệu ${document.title} và gửi thông báo tới người dùng.`,
+    };
+  }
+
+  @ApiResponseSwaggerWrapper(Document)
+  @ApiErrorResponseSwaggerWrapper()
+  @Get('falculties-subjects/all')
+  async getAllFacultiesAndSubjects(): Promise<AllFacultiesAndSubjectsDto> {
+    this.logger.log('Lấy tất cả khoa và môn học');
+    return this.documentsService.getAllFacultiesAndSubjects();
+  }
+
   @Get(':id')
   @ApiParam({
     name: 'id',
@@ -192,13 +231,5 @@ export class DocumentsController {
     this.logger.log(`Lấy thông tin chi tiết cho tài liệu ID: ${id}`);
     const document = await this.documentsService.getDocumentById(id);
     return document;
-  }
-
-  @ApiResponseSwaggerWrapper(AllFacultiesAndSubjectsDto)
-  @ApiErrorResponseSwaggerWrapper()
-  @Get('falculties-subjects/all')
-  async getAllFacultiesAndSubjects(): Promise<AllFacultiesAndSubjectsDto> {
-    this.logger.log('Lấy tất cả khoa và môn học');
-    return this.documentsService.getAllFacultiesAndSubjects();
   }
 }
