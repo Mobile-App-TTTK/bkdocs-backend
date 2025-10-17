@@ -101,35 +101,33 @@ jobs:
           source: '.env.prod'
           target: '~/mobile-app/'
 
-      - name: Deploy to EC2
+      - name: Deploy to EC2 (clean old image + pull new)
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION,ECR_REPOSITORY
           script: |
             cd ~/mobile-app
-            echo "🧹 Dừng container cũ..."
-            docker compose --env-file .env.prod -f docker-compose.prod.yml stop nestjs || true
 
-            echo "🧽 Xóa image dư thừa..."
+            echo "🧹 Dừng container cũ..."
+            docker compose --env-file .env.prod -f docker-compose.prod.yml stop nestjs
+
+            echo "🧽 Xóa tất cả image cũ không còn dùng..."
             docker image prune -f
+
+            echo "🧱 Xóa cache & dangling layers..."
             docker builder prune -f
 
-            echo "🔐 Login ECR..."
-            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REPOSITORY
+            echo "🔐 Login vào ECR..."
+
+            aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin ${{ secrets.ECR_REPOSITORY }}
 
             echo "📦 Kéo image mới nhất..."
             docker compose --env-file .env.prod -f docker-compose.prod.yml pull
 
             echo "🚀 Khởi động lại container..."
-            docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
+            docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --force-recreate
 
-            echo "✅ Digest hiện tại:"
-            docker inspect $ECR_REPOSITORY:latest | grep sha256 || true
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ap-southeast-1
-          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+            echo "✅ Kiểm tra digest hiện tại:"
+            ddocker inspect $ECR_REPOSITORY:latest | grep sha256 || true
