@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { Brackets, ILike, Repository } from 'typeorm';
 import { Document } from './entities/document.entity';
 import { Subject } from './entities/subject.entity';
 import { Faculty } from './entities/falcuty.entity';
@@ -28,40 +28,33 @@ export class DocumentsService {
   ) {}
   
   async search(q: SearchDocumentsDto): Promise<(Document & { rank?: number })[]> {
-    console.log('Repo tablePath:', this.documentRepo.metadata.tablePath);
+    const faculty = q.faculty?.trim();
+    const subject = q.subject?.trim();
+    const keyword = q.keyword?.trim();
 
     const qb = this.documentRepo
-        .createQueryBuilder('d')
-        .leftJoinAndSelect('d.subject', 'subject')
-        .leftJoinAndSelect('d.faculty', 'faculty');
-  
-    const orPredicates: string[] = [];
-    const params: Record<string, any> = {};
+      .createQueryBuilder('d')
+      .leftJoinAndSelect('d.subject', 'subject')
+      .leftJoinAndSelect('d.faculty', 'faculty');
 
-    if (q.faculty && q.faculty.trim()) {
-        params.facultyName = `%${q.faculty.trim()}%`;
-        orPredicates.push('LOWER(faculty.name) LIKE LOWER(:facultyName)');
+    if (faculty) {
+      qb.andWhere('faculty.name ILIKE :facultyName', { facultyName: `%${faculty}%` });
     }
 
-    if (q.subject && q.subject.trim()) {
-        params.subjectName =`%${q.subject.trim()}%`;
-        orPredicates.push('LOWER(subject.name) = LOWER(:subjectName)');
+    if (subject) {
+      qb.andWhere('subject.name ILIKE :subjectName', { subjectName: `%${subject}%` });
     }
 
-    if (q.keyword && q.keyword.trim()) {
-      params.kw = `%${q.keyword.trim()}%`;
-      orPredicates.push(
-        '(LOWER(d.title) LIKE LOWER(:kw) OR LOWER(d.description) LIKE LOWER(:kw) OR LOWER(d.file_key) LIKE LOWER(:kw))'
-      );
-    }
-
-    if (orPredicates.length > 0) {
-      qb.where(orPredicates.shift()!, params);
-      for (const p of orPredicates) qb.orWhere(p, params);
+    if (keyword) {
+      qb.andWhere(new Brackets(b => {
+        b.where('d.title ILIKE :kw')
+        .orWhere('d.description ILIKE :kw')
+        .orWhere('d.fileKey ILIKE :kw');
+      }), { kw: `%${keyword}%` });
     }
 
     return qb.getMany();
-  }
+}
 
   async suggest(keyword: string): Promise<string[]> {
     const kw = keyword.trim();
