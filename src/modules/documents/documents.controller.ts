@@ -210,6 +210,7 @@ export class DocumentsController {
     };
   }
 
+  @ApiOperation({ description: 'Lấy tất cả khoa và môn học (ID và tên)' })
   @ApiResponseSwaggerWrapper(Document)
   @ApiErrorResponseSwaggerWrapper()
   @Get('falculties-subjects/all')
@@ -219,6 +220,7 @@ export class DocumentsController {
   }
 
   @Get(':id')
+  @ApiOperation({ description: 'Trả về thông tin chi tiết của một tài liệu' })
   @ApiParam({
     name: 'id',
     required: true,
