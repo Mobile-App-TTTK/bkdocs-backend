@@ -299,12 +299,23 @@ export class DocumentsService {
     return await this.documentRepo.save(document);
   }
 
-  async getPendingDocuments(limit: number): Promise<Document[]> {
-    return this.documentRepo.find({
+  async getPendingDocuments(
+    page: number,
+    limit: number
+  ): Promise<{ data: Document[]; total: number; page: number; totalPages: number }> {
+    const [data, total] = await this.documentRepo.findAndCount({
       where: { status: Status.PENDING },
       order: { uploadDate: 'DESC' },
       take: limit,
-      relations: ['uploader', 'faculty', 'subject'], // để admin có thêm thông tin
+      skip: (page - 1) * limit,
+      relations: ['uploader', 'faculty', 'subject'],
     });
+
+    return {
+      data,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 }

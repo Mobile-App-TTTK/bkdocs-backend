@@ -25,6 +25,7 @@ import {
   ApiConsumes,
   ApiOperation,
   ApiResponse,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { DownloadDocumentUrlResponseDto } from './dtos/responses/downloadDocumentUrl.response.dto';
 import { ApiResponseSwaggerWrapper } from '@common/decorators/api-response-swagger-wapper.decorator';
@@ -81,7 +82,7 @@ export class DocumentsController {
     return new DownloadDocumentUrlResponseDto({ url });
   }
 
-  @ApiOperation({ description: 'Lấy 3 tài liệu nhiều lượt tải nhất' })
+  @ApiOperation({ summary: 'Lấy 3 tài liệu nhiều lượt tải nhất' })
   @ApiResponseSwaggerWrapper(SuggestDocumentsResponseDto)
   @ApiErrorResponseSwaggerWrapper()
   @Public()
@@ -91,7 +92,7 @@ export class DocumentsController {
     return this.documentsService.getSuggestions();
   }
 
-  @ApiOperation({ description: 'Lấy 6 tài liệu theo khoa của user' })
+  @ApiOperation({ summary: 'Lấy 6 tài liệu theo khoa của user' })
   @ApiResponseSwaggerWrapper(SuggestDocumentsResponseDto)
   @ApiErrorResponseSwaggerWrapper()
   @Get('user/suggestions')
@@ -102,7 +103,7 @@ export class DocumentsController {
   }
 
   @Post('upload')
-  @ApiOperation({ description: 'Upload tài liệu lên' })
+  @ApiOperation({ summary: 'Upload tài liệu lên' })
   @ApiResponseSwaggerWrapper(DocumentResponseDto, { status: 201 })
   @ApiErrorResponseSwaggerWrapper()
   @UseGuards(JwtAuthGuard)
@@ -149,7 +150,7 @@ export class DocumentsController {
         file: { type: 'string', format: 'binary' },
         facultyId: { type: 'string', example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' },
         subjectId: { type: 'string', example: 'c9b1d5f4-3e2a-4d5b-8f4d-1c2b3a4d5e6f' },
-        description: { type: 'string', example: 'Tài liệu về cơ sở dữ liệu' },
+        summary: { type: 'string', example: 'Tài liệu về cơ sở dữ liệu' },
         thumbnailFile: { type: 'string', format: 'binary' },
         images: {
           type: 'array',
@@ -167,7 +168,7 @@ export class DocumentsController {
     },
     @Body('facultyId') facultyId: string,
     @Body('subjectId') subjectId: string,
-    @Body('description') description: string,
+    @Body('summary') summary: string,
     @Req() req: any
   ): Promise<DocumentResponseDto> {
     this.logger.log(`Người dùng ID: ${req.user.id} đang tải lên tài liệu mới`);
@@ -181,22 +182,35 @@ export class DocumentsController {
       files.thumbnailFile,
       facultyId,
       subjectId,
-      description
+      summary
     );
   }
 
-  @ApiErrorResponseSwaggerWrapper()
-  @Get('pending/:limit')
-  @ApiOperation({ summary: 'Lấy danh sách tài liệu đang chờ duyệt' })
-  @ApiParam({ name: 'limit', example: 10 })
+  @Get('pending')
+  @ApiOperation({ summary: 'Lấy danh sách tài liệu đang chờ duyệt (có phân trang)' })
+  @ApiQuery({
+    name: 'page',
+    example: 1,
+    required: false,
+    description: 'Trang hiện tại (mặc định = 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    example: 10,
+    required: false,
+    description: 'Số lượng tài liệu mỗi trang (mặc định = 10)',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Danh sách tài liệu đang chờ duyệt',
+    description: 'Danh sách tài liệu đang chờ duyệt (phân trang)',
     type: [Document],
   })
   @ApiErrorResponseSwaggerWrapper()
-  async getPendingDocuments(@Param('limit') limit: number): Promise<Document[]> {
-    return this.documentsService.getPendingDocuments(limit || 10);
+  async getPendingDocuments(
+    @Query('page') page = 1,
+    @Query('limit') limit = 10
+  ): Promise<{ data: Document[]; total: number; page: number; totalPages: number }> {
+    return this.documentsService.getPendingDocuments(page, limit);
   }
 
   @Roles(UserRole.ADMIN)
@@ -210,7 +224,7 @@ export class DocumentsController {
     };
   }
 
-  @ApiOperation({ description: 'Lấy tất cả khoa và môn học (ID và tên)' })
+  @ApiOperation({ summary: 'Lấy tất cả khoa và môn học (ID và tên)' })
   @ApiResponseSwaggerWrapper(Document)
   @ApiErrorResponseSwaggerWrapper()
   @Get('falculties-subjects/all')
@@ -220,7 +234,7 @@ export class DocumentsController {
   }
 
   @Get(':id')
-  @ApiOperation({ description: 'Trả về thông tin chi tiết của một tài liệu' })
+  @ApiOperation({ summary: 'Trả về thông tin chi tiết của một tài liệu' })
   @ApiParam({
     name: 'id',
     required: true,

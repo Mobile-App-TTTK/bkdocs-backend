@@ -24,19 +24,33 @@ export class NotificationsService {
     private readonly subjectRepo: Repository<Subject>,
     private readonly gateway: NotificationsGateway
   ) {}
-  async getUserNotifications(userId: string): Promise<GetUserNotificationsResponseDto> {
+  async getUserNotifications(
+    userId: string,
+    page: number,
+    limit: number
+  ): Promise<GetUserNotificationsResponseDto> {
     const user: User | null = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
       throw new BadRequestException('User not found');
     }
 
-    const notifications: Notification[] = await this.notificationRepository.find({
+    const [notifications, total] = await this.notificationRepository.findAndCount({
       where: { user: { id: userId } },
+      order: { createdAt: 'DESC' },
+      take: limit,
+      skip: (page - 1) * limit,
     });
-    const NotificationDto: UserNotificationDto[] = notifications.map(
+
+    const notificationDtos: UserNotificationDto[] = notifications.map(
       (notification) => new UserNotificationDto(notification)
     );
-    return new GetUserNotificationsResponseDto(NotificationDto);
+
+    return new GetUserNotificationsResponseDto({
+      data: notificationDtos,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
   }
 
   async sendNewDocumentNotification(
@@ -51,7 +65,6 @@ export class NotificationsService {
       .leftJoinAndSelect('user.subscribedSubjects', 'subject')
       .where('faculty.id = :facultyId OR subject.id = :subjectId', { facultyId, subjectId })
       .getMany();
-
     users.map(async (user) => {
       const notification = this.notificationRepository.create({
         user,
