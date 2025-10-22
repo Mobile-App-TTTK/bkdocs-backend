@@ -7,6 +7,7 @@ import {
 } from 'typeorm';
 import { Document } from '@modules/documents/entities/document.entity';
 import { User } from '@modules/users/entities/user.entity';
+import { FacultyYearSubject } from '@modules/documents/entities/faculty-year-subject.entity';
 
 @Entity('faculties')
 export class Faculty {
@@ -29,4 +30,7 @@ export class Faculty {
 
   @OneToMany(() => User, (user) => user.faculty)
   users: User[];
+
+  @OneToMany(() => FacultyYearSubject, (c) => c.faculty)
+  curricula: FacultyYearSubject[];
 }

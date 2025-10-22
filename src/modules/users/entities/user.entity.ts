@@ -19,6 +19,7 @@ import { Faculty } from '@modules/documents/entities/falcuty.entity';
 import { Rating } from '@modules/ratings/entities/rating.entity';
 import { Comment } from '@modules/comments/entities/comment.entity';
 import { PasswordReset } from '@modules/auth/entities/password_resets.entity';
+
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
@@ -39,6 +40,9 @@ export class User {
     default: UserRole.STUDENT,
   })
   role: UserRole;
+
+  @Column({ name: 'year_of_study', type: 'smallint', nullable: true })
+  yearOfStudy: number | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

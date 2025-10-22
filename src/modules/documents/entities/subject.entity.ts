@@ -7,6 +7,7 @@ import {
 } from 'typeorm';
 import { Document } from '@modules/documents/entities/document.entity';
 import { User } from '@modules/users/entities/user.entity';
+import { FacultyYearSubject } from '@modules/documents/entities/faculty-year-subject.entity';
 
 @Entity('subjects')
 export class Subject {
@@ -26,4 +27,7 @@ export class Subject {
   /** Nhiều người dùng có thể theo dõi nhiều môn học */
   @ManyToMany(() => User, (user) => user.subscribedSubjects)
   subscribers: User[];
+
+  @OneToMany(() => FacultyYearSubject, (c) => c.subject)
+  curricula: FacultyYearSubject[];
 }
