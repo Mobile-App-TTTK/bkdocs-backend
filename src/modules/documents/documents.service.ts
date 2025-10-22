@@ -1,10 +1,23 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  InternalServerErrorException,
+  NotFoundException,
+  BadRequestException,
+  Inject,
+  Req,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DeepPartial, Repository } from 'typeorm';
+import { Brackets, ILike, Repository, DeepPartial } from 'typeorm';
+
 import { Document } from './entities/document.entity';
 import { DetailsDocumentResponseDto } from './dtos/responses/detailsDocument.response.dto';
 import { SearchDocumentsDto } from './dtos/responses/search-documents.dto';
 import { S3Service } from '@modules/s3/s3.service';
+import { FacultyYearSubject } from './entities/faculty-year-subject.entity';
+import { UsersService } from '@modules/users/user.service';
+
+
 import {
   SuggestDocumentResponseDto,
   SuggestDocumentsResponseDto,
@@ -26,6 +39,8 @@ export class DocumentsService {
   constructor(
     @InjectRepository(Document)
     private readonly documentRepo: Repository<Document>,
+    @InjectRepository(FacultyYearSubject) private readonly fysRepo: Repository<FacultyYearSubject>,
+    private readonly usersService: UsersService,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     @InjectRepository(Faculty)
@@ -37,41 +52,82 @@ export class DocumentsService {
     private readonly s3Service: S3Service,
     private readonly NotificationsService: NotificationsService
   ) {}
-
+  
   async search(q: SearchDocumentsDto): Promise<(Document & { rank?: number })[]> {
-    console.log('Repo tablePath:', this.documentRepo.metadata.tablePath);
+    const faculty = q.faculty?.trim();
+    const subject = q.subject?.trim();
+    const keyword = q.keyword?.trim();
 
     const qb = this.documentRepo
       .createQueryBuilder('d')
       .leftJoinAndSelect('d.subject', 'subject')
       .leftJoinAndSelect('d.faculty', 'faculty');
 
-    const orPredicates: string[] = [];
-    const params: Record<string, any> = {};
-
-    if (q.faculty && q.faculty.trim()) {
-      params.facultyName = `%${q.faculty.trim()}%`;
-      orPredicates.push('LOWER(faculty.name) LIKE LOWER(:facultyName)');
+    if (faculty) {
+      qb.andWhere('faculty.name ILIKE :facultyName', { facultyName: `%${faculty}%` });
     }
 
-    if (q.subject && q.subject.trim()) {
-      params.subjectName = `%${q.subject.trim()}%`;
-      orPredicates.push('LOWER(subject.name) = LOWER(:subjectName)');
+    if (subject) {
+      qb.andWhere('subject.name ILIKE :subjectName', { subjectName: `%${subject}%` });
     }
 
-    if (q.keyword && q.keyword.trim()) {
-      params.kw = `%${q.keyword.trim()}%`;
-      orPredicates.push(
-        '(LOWER(d.title) LIKE LOWER(:kw) OR LOWER(d.description) LIKE LOWER(:kw) OR LOWER(d.file_key) LIKE LOWER(:kw))'
-      );
-    }
-
-    if (orPredicates.length > 0) {
-      qb.where(orPredicates.shift()!, params);
-      for (const p of orPredicates) qb.orWhere(p, params);
+    if (keyword) {
+      qb.andWhere(new Brackets(b => {
+        b.where('d.title ILIKE :kw')
+        .orWhere('d.description ILIKE :kw')
+        .orWhere('d.fileKey ILIKE :kw');
+      }), { kw: `%${keyword}%` });
     }
 
     return qb.getMany();
+  }
+
+  async suggest(keyword: string): Promise<string[]> {
+    const kw = keyword.trim();
+    if (kw.length < 2) return [];
+
+    const [docs, subs, facs] = await Promise.all([
+      this.documentRepo.find({
+        select: ['id', 'title'],
+        where: { title: ILike(`%${kw}%`) },
+        take: 5,
+        order: { title: 'ASC' },
+      }),
+
+      this.subjectRepo.find({
+        select: ['id', 'name'],
+        where: { name: ILike(`%${kw}%`) },
+        take: 5,
+        order: { name: 'ASC' },
+      }),
+
+      this.facultyRepo.find({
+        select: ['id', 'name'],
+        where: { name: ILike(`%${kw}%`) },
+        take: 5,
+        order: { name: 'ASC' },
+      }),
+    ]);
+
+    type Hit = { name: string };
+    const hits: Hit[] = [
+      ...docs.map(d => ({ name: d.title })),
+      ...subs.map(s => ({ name: s.name })),
+      ...facs.map(f => ({ name: f.name })),
+    ];
+
+    const score = (name: string) => {
+      const n = name.toLowerCase();
+      const k = kw.toLowerCase();
+      const pos = n.indexOf(k);
+      const posScore = pos === -1 ? 999 : pos;          
+      const lenPenalty = Math.abs(n.length - k.length);
+      return posScore * 1000 + lenPenalty;
+    };
+
+    hits.sort((a, b) => score(a.name) - score(b.name));
+
+    return hits.slice(0, 5).map(h => h.name);
   }
 
   async getDownloadUrl(id: string): Promise<string> {
@@ -131,6 +187,26 @@ export class DocumentsService {
     });
   }
 
+  async suggestSubjectsForUser(userID: string): Promise<Subject[]> {
+    const user = await this.usersService.findByIdWithFaculty(userID);
+    if (!user) throw new NotFoundException('User not found');
+
+    const year = (user as any).yearOfStudy ?? (user as any).year_of_study;
+    if (!year || !user.faculty?.id) {
+      throw new BadRequestException('User must have faculty and year_of_study set');
+    }
+
+    const maps = await this.fysRepo.find({
+      where: {
+        faculty: { id: user.faculty.id },
+        year: Number(year),
+      },
+      relations: ['subject'],
+    });
+
+    return maps.map((m) => m.subject).filter(Boolean);
+  }
+  
   async getSuggestions(): Promise<SuggestDocumentsResponseDto> {
     // limited to top 3 suggestion for simplicity
 

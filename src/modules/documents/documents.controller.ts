@@ -24,6 +24,7 @@ import {
   ApiBody,
   ApiConsumes,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiQuery,
 } from '@nestjs/swagger';
@@ -38,6 +39,8 @@ import { Public } from '@common/decorators/public.decorator';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { AllFacultiesAndSubjectsDto } from './dtos/responses/allFalcutiesAndSubjects.response.dto';
 import { DocumentResponseDto } from './dtos/responses/document.response.dto';
+import { subscribe } from 'diagnostics_channel';
+import { Subject } from './entities/subject.entity';;
 import { RolesGuard } from '@common/guards/role.guard';
 import { Roles } from '@common/decorators/role.decorator';
 import { UserRole } from '@common/enums/user-role.enum';
@@ -56,15 +59,32 @@ export class DocumentsController {
   @Get('search')
   @ApiOkResponse({ type: [Document] })
   async search(@Query() q: SearchDocumentsDto): Promise<(Document & { rank?: number })[]> {
-    const empty = (!q.keyword || q.keyword.trim() === '') && !q.faculty && !q.subject;
+    const empty =
+      (!q.keyword || q.keyword.trim() === '') &&
+      !q.faculty &&
+      !q.subject;
 
     if (empty) {
-      throw new BadRequestException(
-        'Ít nhất một trong các trường keyword, faculty, subject phải có.'
-      );
+      throw new BadRequestException('Ít nhất một trong các trường keyword, faculty, subject phải có.');
     }
 
     return this.documentsService.search(q);
+  }
+
+  @Get('suggest/keyword')
+  @ApiQuery({ name: 'keyword', required: true })
+  @ApiOkResponse({ description: 'Suggest Keyword', type: [String] })
+  async suggest(@Query('keyword') keyword: string): Promise<string[]> {
+    if (!keyword || !keyword.trim()) {
+      throw new BadRequestException('keyword is required');
+    }
+    return this.documentsService.suggest(keyword);
+  }
+
+  @Get('suggest/subject')
+  @ApiOkResponse({ type: [Subject] })
+  async suggestSubject(@Req() req): Promise<Subject[]> {
+    return this.documentsService.suggestSubjectsForUser((req as any).user.userId);
   }
 
   @Get(':id/download')

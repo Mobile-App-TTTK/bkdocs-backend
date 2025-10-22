@@ -8,6 +8,7 @@ import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Roles } from '@common/decorators/role.decorator';
 import { UserRole } from '@common/enums/user-role.enum';
 import { RolesGuard } from '@common/guards/role.guard';
+
 import { FileInterceptor } from '@nestjs/platform-express';
 import { GetUserProfileResponseDto } from './dtos/responses/getUserProfile.response.dto';
 import { UpdateUserProfileDto } from './dtos/requests/updateUserProfile.dto';
