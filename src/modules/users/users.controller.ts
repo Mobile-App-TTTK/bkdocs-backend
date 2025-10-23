@@ -65,8 +65,6 @@ export class UsersController {
     @UploadedFile() avatar?: Express.Multer.File
   ): Promise<GetUserProfileResponseDto> {
     const dto = new UpdateUserProfileDto({ name, facultyId, yearOfStudy });
-    console.log('Update profile DTO:', dto);
-    console.log('Avatar file:', avatar);
     return this.userService.updateProfile(req.user.userId, dto, avatar);
   }
 }

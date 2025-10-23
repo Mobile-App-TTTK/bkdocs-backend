@@ -6,12 +6,15 @@ import * as bcrypt from 'bcrypt';
 import { GetUserProfileResponseDto } from './dtos/responses/getUserProfile.response.dto';
 import { UpdateUserProfileDto } from './dtos/requests/updateUserProfile.dto';
 import { S3Service } from '@modules/s3/s3.service';
+import { Faculty } from '@modules/documents/entities/falcuty.entity';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly usersRepo: Repository<User>,
+    @InjectRepository(Faculty)
+    private readonly facultyRepo: Repository<Faculty>,
     private readonly s3Service: S3Service
   ) {}
 
@@ -48,6 +51,7 @@ export class UsersService {
       relations: ['faculty'],
     });
     if (!user) throw new NotFoundException('User not found');
+    console.log('user: ', user);
 
     const imageUrl: string | undefined = user.imageKey
       ? await this.s3Service.getPresignedDownloadUrl(user.imageKey)
@@ -75,14 +79,20 @@ export class UsersService {
     if (!user) throw new NotFoundException('User not found');
     // Cập nhật tên hoặc avatar
     if (dto.name) user.name = dto.name;
-    if (dto.facultyId) user.faculty = { id: dto.facultyId } as any;
+    if (dto.facultyId && dto.facultyId !== user.faculty?.id) {
+      const newFaculty = await this.facultyRepo.findOne({ where: { id: dto.facultyId } });
+      if (!newFaculty) throw new NotFoundException('Faculty not found');
+      user.faculty = newFaculty;
+    }
     if (dto.yearOfStudy) user.yearOfStudy = dto.yearOfStudy;
     // Nếu có avatar mới → upload S3
     if (avatarFile) {
       const fileKey: string = await this.s3Service.uploadFile(avatarFile, 'avatars');
       user.imageKey = fileKey;
     }
+
     const updated: User = await this.usersRepo.save(user);
+    console.log('user: ', user);
     const imageUrl: string | undefined = updated.imageKey
       ? await this.s3Service.getPresignedDownloadUrl(updated.imageKey)
       : undefined;
@@ -92,8 +102,8 @@ export class UsersService {
       name: updated.name,
       role: updated.role,
       imageUrl: imageUrl,
-      faculty: updated.faculty ? updated.faculty.name : undefined,
-      yearOfStudy: updated.yearOfStudy ? updated.yearOfStudy : undefined,
+      faculty: user.faculty ? user.faculty.name : undefined,
+      yearOfStudy: user.yearOfStudy ? user.yearOfStudy : undefined,
     });
   }
 }
