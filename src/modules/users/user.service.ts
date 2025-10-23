@@ -41,6 +41,7 @@ export class UsersService {
 
   async findByIdWithFaculty(id: string) {
     return this.usersRepo.findOne({ where: { id }, relations: ['faculty'] });
+  }
   async getProfile(userId: string): Promise<GetUserProfileResponseDto> {
     const user = await this.usersRepo.findOne({
       where: { id: userId },
