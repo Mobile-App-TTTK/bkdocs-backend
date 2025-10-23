@@ -1,0 +1,34 @@
+name: Revert DB Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      steps:
+        description: 'Number of migrations to revert (default: 1)'
+        required: false
+        default: '1'
+        type: string
+
+jobs:
+  revert_migration:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Revert migrations on EC2
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/mobile-app
+            echo "Reverting ${{ inputs.steps }} migration(s)..."
+            docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T nestjs npm run migration:revert:prod
+            
+      - name: Notify on success
+        if: success()
+        run: echo "Migration reverted successfully"
+        
+      - name: Notify on failure
+        if: failure()
+        run: echo "Migration revert failed"
