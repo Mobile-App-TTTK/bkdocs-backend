@@ -37,9 +37,9 @@ export class NotificationsController {
     return this.notificationsService.markAsRead(notificationId);
   }
 
-  @Get(':userId')
+  @Get()
   @ApiOperation({ summary: 'Lấy danh sách thông báo của một user (có phân trang)' })
-  @ApiParam({ name: 'userId', required: true, description: 'ID của user' })
+  // @ApiParam({ name: 'userId', required: true, description: 'ID của user' })
   @ApiQuery({
     name: 'page',
     required: false,
@@ -53,10 +53,11 @@ export class NotificationsController {
     description: 'Số lượng thông báo mỗi trang (mặc định = 10)',
   })
   async getUserNotifications(
-    @Param('userId') userId: string,
+    @Req() req: any,
     @Query('page') page = 1,
     @Query('limit') limit = 10
   ): Promise<GetUserNotificationsResponseDto> {
+    const userId = req.user.id;
     return this.notificationsService.getUserNotifications(userId, page, limit);
   }
 
