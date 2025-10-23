@@ -115,8 +115,8 @@ export class DocumentsController {
   @ApiErrorResponseSwaggerWrapper()
   @Get('user/suggestions')
   async getUserSuggestions(@Req() req: any): Promise<SuggestDocumentsResponseDto> {
-    this.logger.log(`Lấy gợi ý tài liệu cho người dùng ID: ${req.user.id}`);
-    const userId: string = req.user.id;
+    this.logger.log(`Lấy gợi ý tài liệu cho người dùng ID: ${req.user.userId}`);
+    const userId: string = req.user.userId;
     return this.documentsService.getUserSuggestions(userId);
   }
 
@@ -189,8 +189,8 @@ export class DocumentsController {
     @Body('summary') summary: string,
     @Req() req: any
   ): Promise<DocumentResponseDto> {
-    this.logger.log(`Người dùng ID: ${req.user.id} đang tải lên tài liệu mới`);
-    const userId = req.user.id;
+    this.logger.log(`Người dùng ID: ${req.user.userId} đang tải lên tài liệu mới`);
+    const userId = req.user.userId;
     if (!files.file?.length) throw new BadRequestException('Thiếu file tài liệu chính');
 
     return this.documentsService.uploadDocument(

@@ -58,7 +58,8 @@ export class UsersService {
       name: user.name,
       role: user.role,
       imageUrl: imageUrl,
-      faculty: user.faculty ? { id: user.faculty.id, name: user.faculty.name } : undefined,
+      faculty: user.faculty ? user.faculty.name : undefined,
+      yearOfStudy: user.yearOfStudy ? user.yearOfStudy : undefined,
     });
   }
 
@@ -67,18 +68,20 @@ export class UsersService {
     dto: UpdateUserProfileDto,
     avatarFile?: Express.Multer.File
   ): Promise<GetUserProfileResponseDto> {
-    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    const user: User | null = await this.usersRepo.findOne({
+      where: { id: userId },
+      relations: ['faculty'],
+    });
     if (!user) throw new NotFoundException('User not found');
-
     // Cập nhật tên hoặc avatar
     if (dto.name) user.name = dto.name;
-
+    if (dto.facultyId) user.faculty = { id: dto.facultyId } as any;
+    if (dto.yearOfStudy) user.yearOfStudy = dto.yearOfStudy;
     // Nếu có avatar mới → upload S3
     if (avatarFile) {
       const fileKey: string = await this.s3Service.uploadFile(avatarFile, 'avatars');
       user.imageKey = fileKey;
     }
-
     const updated: User = await this.usersRepo.save(user);
     const imageUrl: string | undefined = updated.imageKey
       ? await this.s3Service.getPresignedDownloadUrl(updated.imageKey)
@@ -89,6 +92,8 @@ export class UsersService {
       name: updated.name,
       role: updated.role,
       imageUrl: imageUrl,
+      faculty: updated.faculty ? updated.faculty.name : undefined,
+      yearOfStudy: updated.yearOfStudy ? updated.yearOfStudy : undefined,
     });
   }
 }

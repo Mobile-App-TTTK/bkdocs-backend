@@ -32,7 +32,8 @@ export class UsersController {
   @ApiResponseSwaggerWrapper(GetUserProfileResponseDto)
   @ApiOperation({ summary: 'Lấy thông tin người dùng hiện tại (kèm URL avatar từ S3)' })
   async getProfile(@Req() req: any): Promise<GetUserProfileResponseDto> {
-    return this.userService.getProfile(req.user.id);
+    console.log('User ID from request:', req.user.userId);
+    return this.userService.getProfile(req.user.userId);
   }
 
   @Patch('profile')
@@ -45,15 +46,27 @@ export class UsersController {
       type: 'object',
       properties: {
         name: { type: 'string', example: 'John Doe' },
-        avatar: { type: 'string', format: 'binary' },
+        facultyId: { type: 'string', example: '4e5fe7ad-5163-4278-8592-8a89e67a17c5' },
+        yearOfStudy: { type: 'number', example: 3 },
+        avatar: {
+          type: 'string',
+          format: 'binary',
+          description: 'Ảnh đại diện (file upload)',
+        },
       },
     },
   })
+  // file data will be available in 'avatar' field
   async updateProfile(
     @Req() req: any,
-    @Body() dto: UpdateUserProfileDto,
+    @Body('name') name?: string,
+    @Body('facultyId') facultyId?: string,
+    @Body('yearOfStudy') yearOfStudy?: number,
     @UploadedFile() avatar?: Express.Multer.File
   ): Promise<GetUserProfileResponseDto> {
-    return this.userService.updateProfile(req.user.id, dto, avatar);
+    const dto = new UpdateUserProfileDto({ name, facultyId, yearOfStudy });
+    console.log('Update profile DTO:', dto);
+    console.log('Avatar file:', avatar);
+    return this.userService.updateProfile(req.user.userId, dto, avatar);
   }
 }

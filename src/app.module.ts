@@ -12,6 +12,7 @@ import { CommentsModule } from '@modules/comments/comments.module';
 import { Reflector } from '@nestjs/core';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { LoggerModule } from './modules/logger/logger.module';
+import { MulterModule } from '@nestjs/platform-express';
 @Module({
   imports: [
     ConfigModule.forRoot({

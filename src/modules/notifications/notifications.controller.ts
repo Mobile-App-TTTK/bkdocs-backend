@@ -57,7 +57,7 @@ export class NotificationsController {
     @Query('page') page = 1,
     @Query('limit') limit = 10
   ): Promise<GetUserNotificationsResponseDto> {
-    const userId = req.user.id;
+    const userId = req.user.userId;
     return this.notificationsService.getUserNotifications(userId, page, limit);
   }
 
@@ -65,7 +65,7 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Đăng ký theo dõi một khoa' })
   @Post('faculty/:facultyId/subscribe')
   async subscribeFaculty(@Param('facultyId') facultyId: string, @Req() req: any) {
-    const userId = req.user.id;
+    const userId = req.user.userId;
     if (!facultyId) throw new BadRequestException('Thiếu facultyId');
 
     return this.notificationsService.subscribeFaculty(userId, facultyId);
@@ -76,7 +76,7 @@ export class NotificationsController {
   @Post('subject/:subjectId/subscribe')
   @ApiOperation({ summary: 'Đăng ký theo dõi một môn học' })
   async subscribeSubject(@Param('subjectId') subjectId: string, @Req() req: any) {
-    const userId = req.user.id;
+    const userId = req.user.userId;
     if (!subjectId) throw new BadRequestException('Thiếu subjectId');
 
     return this.notificationsService.subscribeSubject(userId, subjectId);
@@ -87,7 +87,7 @@ export class NotificationsController {
   @Delete('faculty/:facultyId/unsubcribe')
   @ApiOperation({ summary: 'Hủy theo dõi một khoa' })
   async unsubscribeFaculty(@Param('facultyId') facultyId: string, @Req() req: any) {
-    const userId = req.user.id;
+    const userId = req.user.userId;
     if (!facultyId) throw new BadRequestException('Thiếu facultyId');
 
     return this.notificationsService.unsubscribeFaculty(userId, facultyId);
@@ -98,7 +98,7 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Hủy theo dõi một môn học' })
   @Delete('subject/:subjectId/unsubcribe')
   async unsubscribeSubject(@Param('subjectId') subjectId: string, @Req() req: any) {
-    const userId = req.user.id;
+    const userId = req.user.userId;
     if (!subjectId) throw new BadRequestException('Thiếu subjectId');
 
     return this.notificationsService.unsubscribeSubject(userId, subjectId);
