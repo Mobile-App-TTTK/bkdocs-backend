@@ -2,14 +2,19 @@ import { Notification } from '@modules/notifications/entities/notification.entit
 import { ApiProperty } from '@nestjs/swagger';
 
 export class GetUserNotificationsResponseDto {
-  @ApiProperty({ type: [GetUserNotificationsResponseDto] })
-  notifications: UserNotificationDto[];
+  @ApiProperty()
+  data: UserNotificationDto[];
+  @ApiProperty()
+  total: number;
+  @ApiProperty()
+  page: number;
+  @ApiProperty()
+  totalPages: number;
 
-  constructor(notifications: UserNotificationDto[]) {
-    this.notifications = notifications;
+  constructor(partial: Partial<GetUserNotificationsResponseDto>) {
+    Object.assign(this, partial);
   }
 }
-
 export class UserNotificationDto {
   @ApiProperty()
   id: string;

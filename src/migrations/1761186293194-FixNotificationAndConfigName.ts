@@ -1,9 +1,10 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class FixNotifications1760712815640 implements MigrationInterface {
-    name = 'FixNotifications1760712815640'
+export class FixNotificationAndConfigName1761186293194 implements MigrationInterface {
+    name = 'FixNotificationAndConfigName1761186293194'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "faculty_year_subjects" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "year" smallint NOT NULL, "faculty_id" uuid, "subject_id" uuid, CONSTRAINT "UQ_11cf4a5c5c7151a05023961f0ff" UNIQUE ("faculty_id", "subject_id", "year"), CONSTRAINT "PK_c0a90691e05fdd73c0d5179c1d3" PRIMARY KEY ("id"))`);
         await queryRunner.query(`CREATE TABLE "subject_subscriptions" ("usersId" uuid NOT NULL, "subjectsId" uuid NOT NULL, CONSTRAINT "PK_5bb6915b4c9ff849a1cffcddb32" PRIMARY KEY ("usersId", "subjectsId"))`);
         await queryRunner.query(`CREATE INDEX "IDX_2244d97b49db2a4049d1d465f4" ON "subject_subscriptions" ("usersId") `);
         await queryRunner.query(`CREATE INDEX "IDX_056795a98e60581042352d523e" ON "subject_subscriptions" ("subjectsId") `);
@@ -13,6 +14,9 @@ export class FixNotifications1760712815640 implements MigrationInterface {
         await queryRunner.query(`CREATE TYPE "public"."notifications_type_enum" AS ENUM('document', 'comment', 'profile')`);
         await queryRunner.query(`ALTER TABLE "notifications" ADD "type" "public"."notifications_type_enum" NOT NULL DEFAULT 'document'`);
         await queryRunner.query(`ALTER TABLE "notifications" ADD "target_id" character varying`);
+        await queryRunner.query(`ALTER TABLE "users" ADD "year_of_study" smallint`);
+        await queryRunner.query(`ALTER TABLE "faculty_year_subjects" ADD CONSTRAINT "FK_21ed3a2cb69db46666c42b60f33" FOREIGN KEY ("faculty_id") REFERENCES "faculties"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "faculty_year_subjects" ADD CONSTRAINT "FK_dfcb8d688a131a1f704c75818ec" FOREIGN KEY ("subject_id") REFERENCES "subjects"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
         await queryRunner.query(`ALTER TABLE "subject_subscriptions" ADD CONSTRAINT "FK_2244d97b49db2a4049d1d465f49" FOREIGN KEY ("usersId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE`);
         await queryRunner.query(`ALTER TABLE "subject_subscriptions" ADD CONSTRAINT "FK_056795a98e60581042352d523e2" FOREIGN KEY ("subjectsId") REFERENCES "subjects"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
         await queryRunner.query(`ALTER TABLE "facuty_subscriptions" ADD CONSTRAINT "FK_17f6c1416d9e48631f32423f355" FOREIGN KEY ("usersId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE`);
@@ -24,6 +28,9 @@ export class FixNotifications1760712815640 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE "facuty_subscriptions" DROP CONSTRAINT "FK_17f6c1416d9e48631f32423f355"`);
         await queryRunner.query(`ALTER TABLE "subject_subscriptions" DROP CONSTRAINT "FK_056795a98e60581042352d523e2"`);
         await queryRunner.query(`ALTER TABLE "subject_subscriptions" DROP CONSTRAINT "FK_2244d97b49db2a4049d1d465f49"`);
+        await queryRunner.query(`ALTER TABLE "faculty_year_subjects" DROP CONSTRAINT "FK_dfcb8d688a131a1f704c75818ec"`);
+        await queryRunner.query(`ALTER TABLE "faculty_year_subjects" DROP CONSTRAINT "FK_21ed3a2cb69db46666c42b60f33"`);
+        await queryRunner.query(`ALTER TABLE "users" DROP COLUMN "year_of_study"`);
         await queryRunner.query(`ALTER TABLE "notifications" DROP COLUMN "target_id"`);
         await queryRunner.query(`ALTER TABLE "notifications" DROP COLUMN "type"`);
         await queryRunner.query(`DROP TYPE "public"."notifications_type_enum"`);
@@ -33,6 +40,7 @@ export class FixNotifications1760712815640 implements MigrationInterface {
         await queryRunner.query(`DROP INDEX "public"."IDX_056795a98e60581042352d523e"`);
         await queryRunner.query(`DROP INDEX "public"."IDX_2244d97b49db2a4049d1d465f4"`);
         await queryRunner.query(`DROP TABLE "subject_subscriptions"`);
+        await queryRunner.query(`DROP TABLE "faculty_year_subjects"`);
     }
 
 }

@@ -11,7 +11,8 @@ import {
   UseInterceptors,
   Body,
   UploadedFiles,
-  Delete,
+  Patch,
+  NotFoundException,
 } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
@@ -23,6 +24,7 @@ import {
   ApiBody,
   ApiConsumes,
   ApiOperation,
+  ApiResponse,
   ApiQuery,
 } from '@nestjs/swagger';
 import { DownloadDocumentUrlResponseDto } from './dtos/responses/downloadDocumentUrl.response.dto';
@@ -37,10 +39,15 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { AllFacultiesAndSubjectsDto } from './dtos/responses/allFalcutiesAndSubjects.response.dto';
 import { DocumentResponseDto } from './dtos/responses/document.response.dto';
 import { subscribe } from 'diagnostics_channel';
-import { Subject } from './entities/subject.entity';;
+import { Subject } from './entities/subject.entity';
+import { RolesGuard } from '@common/guards/role.guard';
+import { Roles } from '@common/decorators/role.decorator';
+import { UserRole } from '@common/enums/user-role.enum';
+import { NotificationsService } from '@modules/notifications/notifications.service';
+import { GetPendingDocumentsDto } from './dtos/requests/getPendingDocument.request.dto';
 @ApiTags('documents')
 @ApiBearerAuth('JWT-auth')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('documents')
 export class DocumentsController {
   constructor(
@@ -57,7 +64,9 @@ export class DocumentsController {
       (!q.subject || q.subject.trim() === '');
 
     if (empty) {
-      throw new BadRequestException('Ít nhất một trong các trường keyword, faculty, subject phải có.');
+      throw new BadRequestException(
+        'Ít nhất một trong các trường keyword, faculty, subject phải có.'
+      );
     }
 
     return this.documentsService.search(q);
@@ -94,7 +103,7 @@ export class DocumentsController {
     return new DownloadDocumentUrlResponseDto({ url });
   }
 
-  @ApiOperation({ description: 'Lấy 3 tài liệu nhiều lượt tải nhất' })
+  @ApiOperation({ summary: 'Lấy 3 tài liệu nhiều lượt tải nhất' })
   @ApiResponseSwaggerWrapper(SuggestDocumentsResponseDto)
   @ApiErrorResponseSwaggerWrapper()
   @Public()
@@ -104,18 +113,18 @@ export class DocumentsController {
     return this.documentsService.getSuggestions();
   }
 
-  @ApiOperation({ description: 'Lấy 6 tài liệu theo khoa của user' })
+  @ApiOperation({ summary: 'Lấy 6 tài liệu theo khoa của user' })
   @ApiResponseSwaggerWrapper(SuggestDocumentsResponseDto)
   @ApiErrorResponseSwaggerWrapper()
   @Get('user/suggestions')
   async getUserSuggestions(@Req() req: any): Promise<SuggestDocumentsResponseDto> {
-    this.logger.log(`Lấy gợi ý tài liệu cho người dùng ID: ${req.user.id}`);
-    const userId: string = req.user.id;
+    this.logger.log(`Lấy gợi ý tài liệu cho người dùng ID: ${req.user.userId}`);
+    const userId: string = req.user.userId;
     return this.documentsService.getUserSuggestions(userId);
   }
 
   @Post('upload')
-  @ApiOperation({ description: 'Upload tài liệu lên' })
+  @ApiOperation({ summary: 'Upload tài liệu lên' })
   @ApiResponseSwaggerWrapper(DocumentResponseDto, { status: 201 })
   @ApiErrorResponseSwaggerWrapper()
   @UseGuards(JwtAuthGuard)
@@ -162,7 +171,7 @@ export class DocumentsController {
         file: { type: 'string', format: 'binary' },
         facultyId: { type: 'string', example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' },
         subjectId: { type: 'string', example: 'c9b1d5f4-3e2a-4d5b-8f4d-1c2b3a4d5e6f' },
-        description: { type: 'string', example: 'Tài liệu về cơ sở dữ liệu' },
+        summary: { type: 'string', example: 'Tài liệu về cơ sở dữ liệu' },
         thumbnailFile: { type: 'string', format: 'binary' },
         images: {
           type: 'array',
@@ -180,11 +189,11 @@ export class DocumentsController {
     },
     @Body('facultyId') facultyId: string,
     @Body('subjectId') subjectId: string,
-    @Body('description') description: string,
+    @Body('summary') summary: string,
     @Req() req: any
   ): Promise<DocumentResponseDto> {
-    this.logger.log(`Người dùng ID: ${req.user.id} đang tải lên tài liệu mới`);
-    const userId = req.user.id;
+    this.logger.log(`Người dùng ID: ${req.user.userId} đang tải lên tài liệu mới`);
+    const userId = req.user.userId;
     if (!files.file?.length) throw new BadRequestException('Thiếu file tài liệu chính');
 
     return this.documentsService.uploadDocument(
@@ -194,11 +203,59 @@ export class DocumentsController {
       files.thumbnailFile,
       facultyId,
       subjectId,
-      description
+      summary
     );
   }
 
+  @Get('pending')
+  @ApiOperation({ summary: 'Lấy danh sách tài liệu đang chờ duyệt (có phân trang)' })
+  @ApiQuery({
+    name: 'page',
+    example: 1,
+    required: false,
+    description: 'Trang hiện tại (mặc định = 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    example: 10,
+    required: false,
+    description: 'Số lượng tài liệu mỗi trang (mặc định = 10)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Danh sách tài liệu đang chờ duyệt (phân trang)',
+    type: [Document],
+  })
+  @ApiErrorResponseSwaggerWrapper()
+  async getPendingDocuments(
+    @Query('page') page = 1,
+    @Query('limit') limit = 10
+  ): Promise<{ data: Document[]; total: number; page: number; totalPages: number }> {
+    return this.documentsService.getPendingDocuments(page, limit);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Duyệt tài liệu đang pending → active và gửi broadcast' })
+  @Patch(':id/approve')
+  async approveDocument(@Param('id') docId: string) {
+    const document = await this.documentsService.updateDocumentStatus(docId, 'ACTIVE');
+
+    return {
+      message: `Đã duyệt tài liệu ${document.title} và gửi thông báo tới người dùng.`,
+    };
+  }
+
+  @ApiOperation({ summary: 'Lấy tất cả khoa và môn học (ID và tên)' })
+  @ApiResponseSwaggerWrapper(Document)
+  @ApiErrorResponseSwaggerWrapper()
+  @Get('falculties-subjects/all')
+  async getAllFacultiesAndSubjects(): Promise<AllFacultiesAndSubjectsDto> {
+    this.logger.log('Lấy tất cả khoa và môn học');
+    return this.documentsService.getAllFacultiesAndSubjects();
+  }
+
   @Get(':id')
+  @ApiOperation({ summary: 'Trả về thông tin chi tiết của một tài liệu' })
   @ApiParam({
     name: 'id',
     required: true,
@@ -211,13 +268,5 @@ export class DocumentsController {
     this.logger.log(`Lấy thông tin chi tiết cho tài liệu ID: ${id}`);
     const document = await this.documentsService.getDocumentById(id);
     return document;
-  }
-
-  @ApiResponseSwaggerWrapper(AllFacultiesAndSubjectsDto)
-  @ApiErrorResponseSwaggerWrapper()
-  @Get('falculties-subjects/all')
-  async getAllFacultiesAndSubjects(): Promise<AllFacultiesAndSubjectsDto> {
-    this.logger.log('Lấy tất cả khoa và môn học');
-    return this.documentsService.getAllFacultiesAndSubjects();
   }
 }
