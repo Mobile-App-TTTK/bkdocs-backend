@@ -56,9 +56,12 @@ export class DocumentsController {
   ) {}
 
   @Get('search')
-  @ApiOkResponse({ type: [Document] })
-  async search(@Query() q: SearchDocumentsDto): Promise<(Document & { rank?: number })[]> {
-    const empty = (!q.keyword || q.keyword.trim() === '') && !q.faculty && !q.subject;
+  @ApiOkResponse({ description: 'Search documents by keyword', type: [Object] })
+  async search(@Query() q: SearchDocumentsDto): Promise<(Document & { rank?: number; downloadUrl?: string | null })[]> {
+    const empty =
+      (!q.keyword || q.keyword.trim() === '') &&
+      (!q.faculty || q.faculty.trim() === '') &&
+      (!q.subject || q.subject.trim() === '');
 
     if (empty) {
       throw new BadRequestException(
@@ -68,7 +71,7 @@ export class DocumentsController {
 
     return this.documentsService.search(q);
   }
-
+  
   @Get('suggest/keyword')
   @ApiQuery({ name: 'keyword', required: true })
   @ApiOkResponse({ description: 'Suggest Keyword', type: [String] })
