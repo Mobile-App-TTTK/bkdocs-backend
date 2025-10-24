@@ -17,7 +17,6 @@ import { S3Service } from '@modules/s3/s3.service';
 import { FacultyYearSubject } from './entities/faculty-year-subject.entity';
 import { UsersService } from '@modules/users/user.service';
 
-
 import {
   SuggestDocumentResponseDto,
   SuggestDocumentsResponseDto,
@@ -31,6 +30,18 @@ import { Image } from './entities/image.entity';
 import { NotificationsService } from '@modules/notifications/notifications.service';
 import { NotificationType } from '@common/enums/notification-type.enum';
 import { CreateNotificationDto } from '@modules/notifications/dto/create-notification.dto';
+
+type SlimDoc = {
+  id: string;
+  title: string;
+  description: string | null;
+  downloadCount: number;
+  uploadDate: Date;
+  subject: { name: string } | null;
+  faculty: { name: string } | null;
+  thumbnail: string | null;
+};
+
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
@@ -51,7 +62,7 @@ export class DocumentsService {
     private readonly s3Service: S3Service,
     private readonly NotificationsService: NotificationsService
   ) {}
-  
+
   async search(q: SearchDocumentsDto): Promise<(Document & { rank?: number })[]> {
     const faculty = q.faculty?.trim();
     const subject = q.subject?.trim();
@@ -59,8 +70,18 @@ export class DocumentsService {
 
     const qb = this.documentRepo
       .createQueryBuilder('d')
-      .leftJoinAndSelect('d.subject', 'subject')
-      .leftJoinAndSelect('d.faculty', 'faculty');
+      .leftJoin('d.subject', 'subject')
+      .leftJoin('d.faculty', 'faculty')
+      .select([
+        'd.id AS d_id',
+        'd.title AS d_title',
+        'd.description AS d_description',
+        'd.downloadCount AS d_downloadCount',
+        'd.uploadDate AS d_uploadDate',
+        'd.thumbnailKey AS d_thumbnailKey',
+        'subject.name AS subject_name',
+        'faculty.name AS faculty_name',
+      ]);
 
     if (faculty) {
       qb.andWhere('faculty.name ILIKE :facultyName', { facultyName: `%${faculty}%` });
@@ -74,16 +95,55 @@ export class DocumentsService {
       qb.andWhere(new Brackets(b => {
         b.where('d.title ILIKE :kw')
         .orWhere('d.description ILIKE :kw')
+        .orWhere('d.thumbnailKey ILIKE :kw')
         .orWhere('d.fileKey ILIKE :kw');
       }), { kw: `%${keyword}%` });
     }
 
-    return qb.getMany();
+    const rows = await qb.getRawMany<{
+      d_id: string;
+      d_title: string;
+      d_description: string | null;
+      d_downloadCount: number;
+      d_uploadDate: Date;
+      d_thumbnailKey: string | null;
+      subject_name: string | null;
+      faculty_name: string | null;
+    }>();
+
+    const result: SlimDoc[] = await Promise.all(
+      rows.map(async (r) => {
+        let downloadUrl: string | null = null;
+        if (r.d_thumbnailKey) {
+          try {
+            downloadUrl = await this.s3Service.getPresignedDownloadUrl(
+              r.d_thumbnailKey,
+              r.d_title || undefined,
+              true
+            );
+          } catch {
+            downloadUrl = null;
+          }
+        }
+        return {
+          id: r.d_id,
+          title: r.d_title,
+          description: r.d_description,
+          downloadCount: Number(r.d_downloadCount) || 0,
+          uploadDate: r.d_uploadDate,
+          subject: r.subject_name ? { name: r.subject_name } : null,
+          faculty: r.faculty_name ? { name: r.faculty_name } : null,
+          thumbnail: downloadUrl,
+        };
+      })
+    );
+
+    return result as unknown as (Document & { rank?: number })[];
   }
 
   async suggest(keyword: string): Promise<string[]> {
     const kw = keyword.trim();
-    if (kw.length < 2) return [];
+    if (kw.length < 1) return [];
 
     const [docs, subs, facs] = await Promise.all([
       this.documentRepo.find({
@@ -188,11 +248,12 @@ export class DocumentsService {
 
   async suggestSubjectsForUser(userID: string): Promise<Subject[]> {
     const user = await this.usersService.findByIdWithFaculty(userID);
-    if (!user) throw new NotFoundException('User not found');
+    const year = (user as any)?.yearOfStudy ?? (user as any)?.year_of_study;
 
-    const year = (user as any).yearOfStudy ?? (user as any).year_of_study;
-    if (!year || !user.faculty?.id) {
-      throw new BadRequestException('User must have faculty and year_of_study set');
+    if (!user || !year || !user.faculty?.id) {
+      this.logger.warn(`[suggestSubjectsForUser] User ${userID} not found -> fallback random subjects`);
+      const randomSubs = await this.pickRandomSubjects(4);
+    return this.attachSubjectUrls(randomSubs);
     }
 
     const maps = await this.fysRepo.find({
@@ -203,7 +264,38 @@ export class DocumentsService {
       relations: ['subject'],
     });
 
-    return maps.map((m) => m.subject).filter(Boolean);
+    const subjects = maps.map((m) => m.subject).filter(Boolean) as Subject[];
+    return this.attachSubjectUrls(subjects);
+  }
+
+  private async pickRandomSubjects(n = 4): Promise<Subject[]> {
+    return this.subjectRepo
+      .createQueryBuilder('s')
+      .orderBy('RANDOM()')
+      .take(n)
+      .getMany();
+  }
+
+  private async attachSubjectUrls(subjects: Subject[], opts?: { download?: boolean; expiresInSeconds?: number }) : Promise<Subject[]> {
+    const download = opts?.download ?? false;
+    const expiresInSeconds = opts?.expiresInSeconds ?? 3600;
+
+    const withUrls = await Promise.all(subjects.map(async (s) => {
+      let url: string | null = null;
+      if ((s as any).fileKey) {
+        url = await this.s3Service.getPresignedDownloadUrl(
+          (s as any).fileKey,
+          s.name,            
+          download,
+          expiresInSeconds
+        );
+      }
+      
+      (s as any).downloadUrl = url;
+      return s;
+    }));
+
+    return withUrls;
   }
   
   async getSuggestions(): Promise<SuggestDocumentsResponseDto> {

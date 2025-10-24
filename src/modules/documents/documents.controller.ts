@@ -49,12 +49,12 @@ export class DocumentsController {
   ) {}
 
   @Get('search')
-  @ApiOkResponse({ type: [Document] })
-  async search(@Query() q: SearchDocumentsDto): Promise<(Document & { rank?: number })[]> {
+  @ApiOkResponse({ description: 'Search documents by keyword', type: [Object] })
+  async search(@Query() q: SearchDocumentsDto): Promise<(Document & { rank?: number; downloadUrl?: string | null })[]> {
     const empty =
       (!q.keyword || q.keyword.trim() === '') &&
-      !q.faculty &&
-      !q.subject;
+      (!q.faculty || q.faculty.trim() === '') &&
+      (!q.subject || q.subject.trim() === '');
 
     if (empty) {
       throw new BadRequestException('Ít nhất một trong các trường keyword, faculty, subject phải có.');
@@ -62,7 +62,7 @@ export class DocumentsController {
 
     return this.documentsService.search(q);
   }
-
+  
   @Get('suggest/keyword')
   @ApiQuery({ name: 'keyword', required: true })
   @ApiOkResponse({ description: 'Suggest Keyword', type: [String] })
