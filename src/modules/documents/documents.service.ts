@@ -35,12 +35,13 @@ import { Status } from '@common/enums/status.enum';
 type SlimDoc = {
   id: string;
   title: string;
-  description: string | null;
   downloadCount: number;
   uploadDate: Date;
   subject: { name: string } | null;
   faculty: { name: string } | null;
   thumbnail: string | null;
+  score: number | null;
+  type: string | null;
 };
 
 @Injectable()
@@ -64,24 +65,60 @@ export class DocumentsService {
     private readonly NotificationsService: NotificationsService
   ) {}
 
-  async search(q: SearchDocumentsDto): Promise<(Document & { rank?: number })[]> {
+  async search(q: SearchDocumentsDto): Promise<any> {
     const faculty = q.faculty?.trim();
     const subject = q.subject?.trim();
     const keyword = q.keyword?.trim();
+    const searchFor = q.searchFor ?? 'documents';
+
+    if (q.searchFor === 'faculty' && keyword) {
+      const kw = `%${keyword}%`;
+      const rows = await this.facultyRepo
+        .createQueryBuilder('f')
+        .leftJoin('f.curricula', 'fy')
+        .leftJoin('fy.subject', 's')
+        .leftJoin('f.documents', 'd')
+        .where('f.name ILIKE :kw', { kw })
+        .orWhere('s.name ILIKE :kw', { kw })
+        .select(['f.name AS name', 'COUNT(d.id) AS count'])
+        .groupBy('f.id')
+        .addGroupBy('f.name')
+        .getRawMany<{ name: string; count: string }>();
+
+      return rows.map(r => ({ name: r.name, count: Number(r.count) || 0 }));
+    }
+
+    if (searchFor === 'subject' && keyword) {
+        const kw = `%${keyword}%`;
+        const rows = await this.subjectRepo
+          .createQueryBuilder('s')
+          .leftJoin('s.documents', 'd')
+          .where('s.name ILIKE :kw', { kw })
+          .orWhere('d.title ILIKE :kw', { kw })
+          .select(['s.name AS name', 'COUNT(d.id) AS count'])
+          .groupBy('s.id')
+          .addGroupBy('s.name')
+          .getRawMany<{ name: string; count: string }>();
+
+        return rows.map(r => ({ name: r.name, count: Number(r.count) || 0 }));
+      }
 
     const qb = this.documentRepo
       .createQueryBuilder('d')
       .leftJoin('d.subject', 'subject')
       .leftJoin('d.faculty', 'faculty')
+      .leftJoin('d.ratings', 'rating')
       .select([
         'd.id AS d_id',
         'd.title AS d_title',
         'd.description AS d_description',
-        'd.downloadCount AS d_downloadCount',
-        'd.uploadDate AS d_uploadDate',
-        'd.thumbnailKey AS d_thumbnailKey',
+        'd.file_key AS d_file_key',
+        'd.download_count AS d_download_count',
+        'd.upload_date AS d_upload_date',
+        'd.thumbnail_key AS d_thumbnail_key',
         'subject.name AS subject_name',
         'faculty.name AS faculty_name',
+        'AVG(rating.score) AS rating_score',
       ]);
 
     if (faculty) {
@@ -101,24 +138,36 @@ export class DocumentsService {
       }), { kw: `%${keyword}%` });
     }
 
+    qb.groupBy('d.id')
+      .addGroupBy('d.title')
+      .addGroupBy('d.description')
+      .addGroupBy('d.download_count')
+      .addGroupBy('d.upload_date')
+      .addGroupBy('d.thumbnail_key')
+      .addGroupBy('d.file_key')
+      .addGroupBy('subject.name')
+      .addGroupBy('faculty.name');
+
     const rows = await qb.getRawMany<{
       d_id: string;
       d_title: string;
       d_description: string | null;
-      d_downloadCount: number;
-      d_uploadDate: Date;
-      d_thumbnailKey: string | null;
+      d_file_key: string | null;
+      d_download_count: number;
+      d_upload_date: Date;
+      d_thumbnail_key: string | null;
       subject_name: string | null;
       faculty_name: string | null;
+      rating_score: string | number | null;
     }>();
 
     const result: SlimDoc[] = await Promise.all(
       rows.map(async (r) => {
         let downloadUrl: string | null = null;
-        if (r.d_thumbnailKey) {
+        if (r.d_thumbnail_key) {
           try {
             downloadUrl = await this.s3Service.getPresignedDownloadUrl(
-              r.d_thumbnailKey,
+              r.d_thumbnail_key,
               r.d_title || undefined,
               true
             );
@@ -126,20 +175,96 @@ export class DocumentsService {
             downloadUrl = null;
           }
         }
+        
+        const fileType = r.d_file_key
+          ? (r.d_file_key.split('.').pop() || '').toLowerCase() || null
+          : null;
+
         return {
           id: r.d_id,
           title: r.d_title,
-          description: r.d_description,
-          downloadCount: Number(r.d_downloadCount) || 0,
-          uploadDate: r.d_uploadDate,
+          downloadCount: Number(r.d_download_count) || 0,
+          uploadDate: r.d_upload_date,
           subject: r.subject_name ? { name: r.subject_name } : null,
           faculty: r.faculty_name ? { name: r.faculty_name } : null,
           thumbnail: downloadUrl,
+          score: r.rating_score != null ? Number(r.rating_score) : null,
+          type: fileType,
         };
       })
     );
 
-    return result as unknown as (Document & { rank?: number })[];
+    if (!keyword && faculty) {
+      const facRows = await this.facultyRepo
+        .createQueryBuilder('f')
+        .leftJoin('f.documents', 'd')
+        .where('f.name ILIKE :fname', { fname: `%${faculty}%` })
+        .select(['f.name AS name', 'COUNT(d.id) AS count'])
+        .groupBy('f.id')
+        .addGroupBy('f.name')
+        .getRawMany<{ name: string; count: string }>();
+
+      const faculties = facRows.map((r) => ({
+        name: r.name,
+        count: Number(r.count) || 0,
+        documents: result
+          .filter((d) => ((d.faculty?.name ?? '') || '').toLowerCase() === (r.name || '').toLowerCase())
+          .map((d) => ({ ...d, faculty: null })),
+      }));
+
+      return { faculties };
+    }
+
+    if (!keyword && subject) {
+      const subRows = await this.subjectRepo
+        .createQueryBuilder('s')
+        .leftJoin('s.documents', 'd')
+        .where('s.name ILIKE :sname', { sname: `%${subject}%` })
+        .select(['s.name AS name', 'COUNT(d.id) AS count'])
+        .groupBy('s.id')
+        .addGroupBy('s.name')
+        .getRawMany<{ name: string; count: string }>();
+
+      const subjects = subRows.map((r) => ({
+        name: r.name,
+        count: Number(r.count) || 0,
+        documents: result
+          .filter((d) => ((d.subject?.name ?? '') || '').toLowerCase() === (r.name || '').toLowerCase())
+          .map((d) => ({ ...d, subject: null })),
+      }));
+
+      return { subjects };
+    }
+
+    if (q?.type || q?.sort || q?.faculty) {
+      return this.filterDocuments(result, { faculty: q?.faculty, type: q?.type, sort: q?.sort as any });
+    }
+
+    return result;
+  }
+
+  filterDocuments(docs: SlimDoc[], opts?: { faculty?: string; type?: string; sort?: 'asc' | 'desc' }): SlimDoc[] {
+    let results = Array.isArray(docs) ? docs.slice() : [];
+
+    if (opts?.faculty) {
+      const f = opts.faculty.toLowerCase();
+      results = results.filter(d => (d.faculty?.name ?? '').toLowerCase().includes(f));
+    }
+
+    if (opts?.type) {
+      const t = opts.type.toLowerCase();
+      results = results.filter(d => (d.type ?? '').toLowerCase() === t);
+    }
+
+    if (opts?.sort) {
+      results.sort((a, b) => {
+        const da = new Date(a.uploadDate).getTime();
+        const db = new Date(b.uploadDate).getTime();
+        return opts.sort === 'asc' ? da - db : db - da;
+      });
+    }
+
+    return results;
   }
 
   async suggest(keyword: string): Promise<string[]> {
@@ -180,7 +305,7 @@ export class DocumentsService {
       const n = name.toLowerCase();
       const k = kw.toLowerCase();
       const pos = n.indexOf(k);
-      const posScore = pos === -1 ? 999 : pos;          
+      const posScore = pos === -1 ? 999 : pos;
       const lenPenalty = Math.abs(n.length - k.length);
       return posScore * 1000 + lenPenalty;
     };

@@ -57,7 +57,7 @@ export class DocumentsController {
 
   @Get('search')
   @ApiOkResponse({ description: 'Search documents by keyword', type: [Object] })
-  async search(@Query() q: SearchDocumentsDto): Promise<(Document & { rank?: number; downloadUrl?: string | null })[]> {
+  async search(@Query() q: SearchDocumentsDto): Promise<any[]> {
     const empty =
       (!q.keyword || q.keyword.trim() === '') &&
       (!q.faculty || q.faculty.trim() === '') &&
