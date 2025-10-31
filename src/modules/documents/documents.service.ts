@@ -44,6 +44,25 @@ type SlimDoc = {
   type: string | null;
 };
 
+type SubjectGroup = {
+  name: string | null;
+  documents: Array<{
+    id: string;
+    title: string;
+    downloadCount: number;
+    uploadDate: Date;
+    thumbnail: string | null;
+    score: number | null;
+    type: string | null;
+  }>;
+};
+
+type FacultyDocumentsResponse = {
+  name: string;
+  document_count: number;
+  subjects: SubjectGroup[];
+};
+
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
@@ -403,6 +422,170 @@ export class DocumentsService {
       thumbnailKey: document.thumbnailKey,
       overallRating,
     });
+  }
+
+  async getDocumentsByFaculty(facultyId: string): Promise<FacultyDocumentsResponse> {
+    const faculty = await this.facultyRepo.findOne({ where: { id: facultyId } });
+    if (!faculty) {
+      throw new NotFoundException(`Faculty with ID "${facultyId}" not found`);
+    }
+
+    const qb = this.documentRepo
+      .createQueryBuilder('d')
+      .leftJoin('d.subject', 'subject')
+      .leftJoin('d.faculty', 'faculty')
+      .leftJoin('d.ratings', 'rating')
+      .where('faculty.id = :fid', { fid: facultyId })
+      .select([
+        'd.id AS d_id',
+        'd.title AS d_title',
+        'd.description AS d_description',
+        'd.file_key AS d_file_key',
+        'd.download_count AS d_download_count',
+        'd.upload_date AS d_upload_date',
+        'd.thumbnail_key AS d_thumbnail_key',
+        'subject.name AS subject_name',
+        'faculty.name AS faculty_name',
+        'AVG(rating.score) AS rating_score',
+      ]);
+
+    qb.groupBy('d.id')
+      .addGroupBy('d.title')
+      .addGroupBy('d.description')
+      .addGroupBy('d.download_count')
+      .addGroupBy('d.upload_date')
+      .addGroupBy('d.thumbnail_key')
+      .addGroupBy('d.file_key')
+      .addGroupBy('subject.name')
+      .addGroupBy('faculty.name');
+
+    const rows = await qb.getRawMany<any>();
+
+    const docs: SlimDoc[] = await Promise.all(
+      rows.map(async (r) => {
+        let downloadUrl: string | null = null;
+        if (r.d_thumbnail_key) {
+          try {
+            downloadUrl = await this.s3Service.getPresignedDownloadUrl(r.d_thumbnail_key, r.d_title || undefined, true);
+          } catch {
+            downloadUrl = null;
+          }
+        }
+
+        const fileType = r.d_file_key ? (r.d_file_key.split('.').pop() || '').toLowerCase() || null : null;
+
+        return {
+          id: r.d_id,
+          title: r.d_title,
+          downloadCount: Number(r.d_download_count) || 0,
+          uploadDate: r.d_upload_date,
+          subject: r.subject_name ? { name: r.subject_name } : null,
+          // remove faculty from each document in this faculty-scoped response
+          faculty: null,
+          thumbnail: downloadUrl,
+          score: r.rating_score != null ? Number(r.rating_score) : null,
+          type: fileType,
+        } as SlimDoc;
+      })
+    );
+
+    const map: Record<string, { subjectName: string | null; docs: SlimDoc[] }> = {};
+    for (const d of docs) {
+      const sname = d.subject?.name ?? null;
+      const key = sname || '__no_subject__';
+      if (!map[key]) map[key] = { subjectName: sname, docs: [] };
+      map[key].docs.push(d);
+    }
+
+    const subjects = Object.values(map).map((g) => ({
+      name: g.subjectName,
+      documents: g.docs.map(d => ({
+        id: d.id,
+        title: d.title,
+        downloadCount: d.downloadCount,
+        uploadDate: d.uploadDate,
+        thumbnail: d.thumbnail,
+        score: d.score,
+        type: d.type,
+      })),
+    }));
+
+    return {
+      name: faculty.name,
+      document_count: docs.length,
+      subjects,
+    };
+  }
+
+  async getDocumentsBySubject(subjectId: string): Promise<{ name: string; document_count: number; documents: SlimDoc[] }> {
+    const subjectEntity = await this.subjectRepo.findOne({ where: { id: subjectId } });
+    if (!subjectEntity) {
+      throw new NotFoundException(`Subject with ID "${subjectId}" not found`);
+    }
+
+    const qb = this.documentRepo
+      .createQueryBuilder('d')
+      .leftJoin('d.subject', 'subject')
+      .leftJoin('d.faculty', 'faculty')
+      .leftJoin('d.ratings', 'rating')
+      .where('subject.id = :sid', { sid: subjectId })
+      .select([
+        'd.id AS d_id',
+        'd.title AS d_title',
+        'd.description AS d_description',
+        'd.file_key AS d_file_key',
+        'd.download_count AS d_download_count',
+        'd.upload_date AS d_upload_date',
+        'd.thumbnail_key AS d_thumbnail_key',
+        'subject.name AS subject_name',
+        'faculty.name AS faculty_name',
+        'AVG(rating.score) AS rating_score',
+      ]);
+
+    qb.groupBy('d.id')
+      .addGroupBy('d.title')
+      .addGroupBy('d.description')
+      .addGroupBy('d.download_count')
+      .addGroupBy('d.upload_date')
+      .addGroupBy('d.thumbnail_key')
+      .addGroupBy('d.file_key')
+      .addGroupBy('subject.name')
+      .addGroupBy('faculty.name');
+
+    const rows = await qb.getRawMany<any>();
+
+    const docs: SlimDoc[] = await Promise.all(
+      rows.map(async (r) => {
+        let downloadUrl: string | null = null;
+        if (r.d_thumbnail_key) {
+          try {
+            downloadUrl = await this.s3Service.getPresignedDownloadUrl(r.d_thumbnail_key, r.d_title || undefined, true);
+          } catch {
+            downloadUrl = null;
+          }
+        }
+
+        const fileType = r.d_file_key ? (r.d_file_key.split('.').pop() || '').toLowerCase() || null : null;
+
+        return {
+          id: r.d_id,
+          title: r.d_title,
+          downloadCount: Number(r.d_download_count) || 0,
+          uploadDate: r.d_upload_date,
+          subject: r.subject_name ? { name: r.subject_name } : null,
+          faculty: r.faculty_name ? { name: r.faculty_name } : null,
+          thumbnail: downloadUrl,
+          score: r.rating_score != null ? Number(r.rating_score) : null,
+          type: fileType,
+        } as SlimDoc;
+      })
+    );
+
+    return {
+      name: subjectEntity.name,
+      document_count: docs.length,
+      documents: docs,
+    };
   }
 
   async suggestSubjectsForUser(userID: string): Promise<any[]> {

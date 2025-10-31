@@ -254,6 +254,22 @@ export class DocumentsController {
     return this.documentsService.getAllFacultiesAndSubjects();
   }
 
+  @Get('faculty/:id')
+  @ApiOperation({ summary: 'Lấy tài liệu theo khoa (name, count, documents)' })
+  @ApiParam({ name: 'id', required: true, description: 'Faculty ID' })
+  @ApiOkResponse({ description: 'Faculty documents', type: Object })
+  async getDocumentsByFaculty(@Param('id') id: string) {
+    return this.documentsService.getDocumentsByFaculty(id);
+  }
+
+  @Get('subject/:id')
+  @ApiOperation({ summary: 'Lấy tài liệu theo môn học (name, count, documents)' })
+  @ApiParam({ name: 'id', required: true, description: 'Subject ID' })
+  @ApiOkResponse({ description: 'Subject documents', type: Object })
+  async getDocumentsBySubject(@Param('id') id: string) {
+    return this.documentsService.getDocumentsBySubject(id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Trả về thông tin chi tiết của một tài liệu' })
   @ApiParam({
