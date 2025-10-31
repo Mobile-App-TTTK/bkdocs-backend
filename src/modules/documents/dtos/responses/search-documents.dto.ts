@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsOptional, IsString, IsUUID, IsIn } from 'class-validator';
 
 export class SearchDocumentsDto {
   @ApiPropertyOptional({ description: 'Từ khóa tìm kiếm' })
@@ -17,16 +17,21 @@ export class SearchDocumentsDto {
 
   @ApiPropertyOptional({ description: 'Loại file' })
   @IsOptional()
-  @IsString()
-  type?: string;
-
-  @ApiPropertyOptional({ description: "Sorting: 'asc' hoặc 'desc'" })
+  @ApiPropertyOptional({ description: 'Loại file', enum: ['word', 'pdf', 'image', 'powerpoint'] })
   @IsOptional()
   @IsString()
-  sort?: 'asc' | 'desc';
+  @IsIn(['word', 'pdf', 'image', 'powerpoint'])
+  type?: 'word' | 'pdf' | 'image' | 'powerpoint';
 
-  @ApiPropertyOptional({ description: "Search branch: 'documents' hoặc 'faculty' hoặc 'subject'", default: 'documents' })
+  @ApiPropertyOptional({ description: "Sort mode", enum: ['newest', 'oldest', 'downloadCount'] })
   @IsOptional()
   @IsString()
-  searchFor?: 'documents' | 'faculty' | 'subject';
+  @IsIn(['newest', 'oldest', 'downloadCount'])
+  sort?: 'newest' | 'oldest' | 'downloadCount';
+
+  @ApiPropertyOptional({ description: "Search branch", default: 'all', enum: ['all', 'faculty', 'subject', 'user'] })
+  @IsOptional()
+  @IsString()
+  @IsIn(['all', 'faculty', 'subject', 'user'])
+  searchFor?: 'all' | 'faculty' | 'subject' | 'user';
 }

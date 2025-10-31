@@ -69,7 +69,7 @@ export class DocumentsService {
     const faculty = q.faculty?.trim();
     const subject = q.subject?.trim();
     const keyword = q.keyword?.trim();
-    const searchFor = q.searchFor ?? 'documents';
+    const searchFor = q.searchFor ?? 'all';
 
     if (q.searchFor === 'faculty' && keyword) {
       const kw = `%${keyword}%`;
@@ -89,19 +89,31 @@ export class DocumentsService {
     }
 
     if (searchFor === 'subject' && keyword) {
-        const kw = `%${keyword}%`;
-        const rows = await this.subjectRepo
-          .createQueryBuilder('s')
-          .leftJoin('s.documents', 'd')
-          .where('s.name ILIKE :kw', { kw })
-          .orWhere('d.title ILIKE :kw', { kw })
-          .select(['s.name AS name', 'COUNT(d.id) AS count'])
-          .groupBy('s.id')
-          .addGroupBy('s.name')
-          .getRawMany<{ name: string; count: string }>();
+      const kw = `%${keyword}%`;
+      const rows = await this.subjectRepo
+        .createQueryBuilder('s')
+        .leftJoin('s.documents', 'd')
+        .where('s.name ILIKE :kw', { kw })
+        .orWhere('d.title ILIKE :kw', { kw })
+        .select(['s.name AS name', 'COUNT(d.id) AS count'])
+        .groupBy('s.id')
+        .addGroupBy('s.name')
+        .getRawMany<{ name: string; count: string }>();
 
-        return rows.map(r => ({ name: r.name, count: Number(r.count) || 0 }));
-      }
+      return rows.map(r => ({ name: r.name, count: Number(r.count) || 0 }));
+    }
+
+    if (q.searchFor === 'user' && keyword) {
+      const kw = `%${keyword}%`;
+      const userRows = await this.userRepo
+        .createQueryBuilder('u')
+        .where('u.name ILIKE :kw', { kw })
+        .orWhere('u.email ILIKE :kw', { kw })
+        .select('u.name', 'name')
+        .getRawMany<{ name: string }>();
+
+      return userRows.map(u => u.name);
+    }
 
     const qb = this.documentRepo
       .createQueryBuilder('d')
@@ -194,6 +206,16 @@ export class DocumentsService {
       })
     );
 
+    let users: string[] = [];
+    if (keyword) {
+      const userRows = await this.userRepo
+        .createQueryBuilder('u')
+        .where('u.name ILIKE :kw', { kw: `%${keyword}%` })
+        .select('u.name', 'name')
+        .getRawMany<{ name: string }>();
+      users = userRows.map(u => u.name);
+    }
+
     if (!keyword && faculty) {
       const facRows = await this.facultyRepo
         .createQueryBuilder('f')
@@ -236,14 +258,17 @@ export class DocumentsService {
       return { subjects };
     }
 
-    if (q?.type || q?.sort || q?.faculty) {
-      return this.filterDocuments(result, { faculty: q?.faculty, type: q?.type, sort: q?.sort as any });
+    const onlyKeyword = Boolean(keyword) && !faculty && !subject && !q?.type && !q?.sort;
+
+    if (q?.type || q?.sort || q?.faculty || q?.subject) {
+      const filtered = this.filterDocuments(result, { faculty: q?.faculty, type: q?.type, sort: q?.sort as any });
+      return onlyKeyword ? { documents: filtered, users } : filtered;
     }
 
-    return result;
+    return onlyKeyword ? { documents: result, users } : result;
   }
 
-  filterDocuments(docs: SlimDoc[], opts?: { faculty?: string; type?: string; sort?: 'asc' | 'desc' }): SlimDoc[] {
+  filterDocuments(docs: SlimDoc[], opts?: { faculty?: string; type?: string; sort?: 'newest' | 'oldest' | 'downloadCount' }): SlimDoc[] {
     let results = Array.isArray(docs) ? docs.slice() : [];
 
     if (opts?.faculty) {
@@ -252,16 +277,24 @@ export class DocumentsService {
     }
 
     if (opts?.type) {
-      const t = opts.type.toLowerCase();
-      results = results.filter(d => (d.type ?? '').toLowerCase() === t);
+      const raw = opts.type.toLowerCase().trim().replace(/^\./, '');
+      const aliasMap: Record<string, string[]> = {
+        pdf: ['pdf'],
+        word: ['doc', 'docx'],
+        image: ['jpg', 'jpeg', 'png', 'gif'],
+        powerpoint: ['pptx']
+      };
+
+      const allowed = aliasMap[raw] ?? [raw];
+      results = results.filter(d => allowed.includes(((d.type ?? '') as string).toLowerCase()));
     }
 
-    if (opts?.sort) {
-      results.sort((a, b) => {
-        const da = new Date(a.uploadDate).getTime();
-        const db = new Date(b.uploadDate).getTime();
-        return opts.sort === 'asc' ? da - db : db - da;
-      });
+    if (opts?.sort === 'downloadCount') {
+      results.sort((a, b) => b.downloadCount - a.downloadCount);
+    } else if (opts?.sort === 'newest') {
+      results.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
+    } else if (opts?.sort === 'oldest') {
+      results.sort((a, b) => new Date(a.uploadDate).getTime() - new Date(b.uploadDate).getTime());
     }
 
     return results;
@@ -372,14 +405,27 @@ export class DocumentsService {
     });
   }
 
-  async suggestSubjectsForUser(userID: string): Promise<Subject[]> {
+  async suggestSubjectsForUser(userID: string): Promise<any[]> {
     const user = await this.usersService.findByIdWithFaculty(userID);
     const year = (user as any)?.yearOfStudy ?? (user as any)?.year_of_study;
 
     if (!user || !year || !user.faculty?.id) {
       this.logger.warn(`[suggestSubjectsForUser] User ${userID} not found -> fallback random subjects`);
       const randomSubs = await this.pickRandomSubjects(4);
-    return this.attachSubjectUrls(randomSubs);
+      const withUrls = await this.attachSubjectUrls(randomSubs);
+      const ids = withUrls.map(s => s.id);
+      if (ids.length === 0) return [];
+      const counts = await this.subjectRepo
+        .createQueryBuilder('s')
+        .leftJoin('s.documents', 'd')
+        .where('s.id IN (:...ids)', { ids })
+        .select(['s.id AS id', 'COUNT(d.id) AS count'])
+        .groupBy('s.id')
+        .getRawMany<{ id: string; count: string }>();
+
+      const countMap = counts.reduce((acc, cur) => ({ ...acc, [cur.id]: Number(cur.count) || 0 }), {} as Record<string, number>);
+
+      return withUrls.map(s => ({ id: s.id, name: s.name, count: countMap[s.id] || 0, downloadUrl: (s as any).downloadUrl ?? null }));
     }
 
     const maps = await this.fysRepo.find({
@@ -391,7 +437,21 @@ export class DocumentsService {
     });
 
     const subjects = maps.map((m) => m.subject).filter(Boolean) as Subject[];
-    return this.attachSubjectUrls(subjects);
+    const withUrls = await this.attachSubjectUrls(subjects);
+    const ids = withUrls.map(s => s.id);
+    if (ids.length === 0) return [];
+
+    const counts = await this.subjectRepo
+      .createQueryBuilder('s')
+      .leftJoin('s.documents', 'd')
+      .where('s.id IN (:...ids)', { ids })
+      .select(['s.id AS id', 'COUNT(d.id) AS count'])
+      .groupBy('s.id')
+      .getRawMany<{ id: string; count: string }>();
+
+    const countMap = counts.reduce((acc, cur) => ({ ...acc, [cur.id]: Number(cur.count) || 0 }), {} as Record<string, number>);
+
+    return withUrls.map(s => ({ id: s.id, name: s.name, count: countMap[s.id] || 0, downloadUrl: (s as any).downloadUrl ?? null }));
   }
 
   private async pickRandomSubjects(n = 4): Promise<Subject[]> {
