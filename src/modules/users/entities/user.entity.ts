@@ -34,6 +34,9 @@ export class User {
   @Column()
   name: string;
 
+  @Column({ name: 'image_key', nullable: true })
+  imageKey: string;
+
   @Column({
     type: 'enum',
     enum: UserRole,
@@ -41,8 +44,11 @@ export class User {
   })
   role: UserRole;
 
-  @Column({ name: 'year_of_study', type: 'smallint', nullable: true })
-  yearOfStudy: number | null;
+  @Column({ name: 'intake_year', type: 'int', nullable: true })
+  intakeYear: number | null;
+
+  @Column({ name: 'is_verified', default: false })
+  isVerified: boolean;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
@@ -60,6 +66,13 @@ export class User {
   @JoinTable({ name: 'subject_subscriptions' })
   subscribedSubjects: Subject[];
 
+  @ManyToMany(() => User, (user) => user.followers)
+  @JoinTable({ name: 'user_followers' })
+  followers: User[];
+
+  @ManyToMany(() => User, (user) => user.following)
+  following: User[];
+
   @ManyToMany(() => Faculty, (faculty) => faculty.subscribers)
   @JoinTable({ name: 'facuty_subscriptions' })
   subscribedFaculties: Faculty[];
@@ -76,7 +89,4 @@ export class User {
   @ManyToOne(() => Faculty, (faculty) => faculty.users)
   @JoinColumn({ name: 'faculty_id' })
   faculty: Faculty;
-
-  @Column({ name: 'image_key', nullable: true })
-  imageKey: string;
 }
