@@ -63,7 +63,7 @@ export class UsersService {
       role: user.role,
       imageUrl: imageUrl,
       faculty: user.faculty ? user.faculty.name : undefined,
-      yearOfStudy: user.yearOfStudy ? user.yearOfStudy : undefined,
+      intakeYear: user.intakeYear ? user.intakeYear : undefined,
     });
   }
 
@@ -84,7 +84,7 @@ export class UsersService {
       if (!newFaculty) throw new NotFoundException('Faculty not found');
       user.faculty = newFaculty;
     }
-    if (dto.yearOfStudy) user.yearOfStudy = dto.yearOfStudy;
+    if (dto.intakeYear) user.intakeYear = dto.intakeYear;
     // Nếu có avatar mới → upload S3
     if (avatarFile) {
       const fileKey: string = await this.s3Service.uploadFile(avatarFile, 'avatars');
@@ -103,7 +103,7 @@ export class UsersService {
       role: updated.role,
       imageUrl: imageUrl,
       faculty: user.faculty ? user.faculty.name : undefined,
-      yearOfStudy: user.yearOfStudy ? user.yearOfStudy : undefined,
+      intakeYear: user.intakeYear ? user.intakeYear : undefined,
     });
   }
 }

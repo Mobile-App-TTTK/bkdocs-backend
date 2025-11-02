@@ -13,10 +13,24 @@ import { S3Module } from '@modules/s3/s3.module';
 import { UsersModule } from '@modules/users/user.module';
 import { FacultyYearSubject } from './entities/faculty-year-subject.entity';
 import { NotificationsModule } from '@modules/notifications/notifications.module';
-
+import { DocumentType } from '@modules/documents/entities/document-type.entity';
 @Module({
   controllers: [DocumentsController],
   providers: [DocumentsService, ConfigService],
-  imports: [UsersModule, S3Module, TypeOrmModule.forFeature([Document, Subject, Faculty, User, Rating, Image, FacultyYearSubject]), NotificationsModule],
+  imports: [
+    UsersModule,
+    S3Module,
+    TypeOrmModule.forFeature([
+      Document,
+      DocumentType,
+      Subject,
+      Faculty,
+      User,
+      Rating,
+      Image,
+      FacultyYearSubject,
+    ]),
+    NotificationsModule,
+  ],
 })
 export class DocumentsModule {}

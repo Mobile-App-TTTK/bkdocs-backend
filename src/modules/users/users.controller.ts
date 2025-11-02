@@ -61,10 +61,10 @@ export class UsersController {
     @Req() req: any,
     @Body('name') name?: string,
     @Body('facultyId') facultyId?: string,
-    @Body('yearOfStudy') yearOfStudy?: number,
+    @Body('intakeYear') intakeYear?: number,
     @UploadedFile() avatar?: Express.Multer.File
   ): Promise<GetUserProfileResponseDto> {
-    const dto = new UpdateUserProfileDto({ name, facultyId, yearOfStudy });
+    const dto = new UpdateUserProfileDto({ name, facultyId, intakeYear: intakeYear });
     return this.userService.updateProfile(req.user.userId, dto, avatar);
   }
 }
