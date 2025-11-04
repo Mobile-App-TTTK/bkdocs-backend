@@ -7,7 +7,7 @@ import {
   GetUserNotificationsResponseDto,
   UserNotificationDto,
 } from './dtos/response/getUserNotifications.response.dto';
-import { Faculty } from '@modules/documents/entities/falcuty.entity';
+import { Faculty } from '@modules/documents/entities/faculty.entity';
 import { Subject } from '@modules/documents/entities/subject.entity';
 import { NotificationType } from '@common/enums/notification-type.enum';
 import { NotificationsGateway } from './notifications.gateway';
@@ -59,22 +59,38 @@ export class NotificationsService {
     subjectId: string | undefined,
     docName: string
   ) {
-    const users = await this.userRepository
+    const query = await this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.subscribedFaculties', 'faculty')
-      .leftJoinAndSelect('user.subscribedSubjects', 'subject')
-      .where('faculty.id IN (:...facultyIds) OR subject.id = :subjectId', { facultyIds, subjectId })
-      .getMany();
+      .leftJoinAndSelect('user.subscribedSubjects', 'subject');
+
+    if (facultyIds?.length && subjectId) {
+      query.where('(faculty.id IN (:...facultyIds) OR subject.id = :subjectId)', {
+        facultyIds,
+        subjectId,
+      });
+    } else if (facultyIds?.length) {
+      query.where('faculty.id IN (:...facultyIds)', { facultyIds });
+    } else if (subjectId) {
+      query.where('subject.id = :subjectId', { subjectId });
+    } else {
+      // không có facultyIds hay subjectId => không cần gửi ai cả
+      return;
+    }
+
+    const users = await query.getMany();
+
     users.map(async (user) => {
       const notification = this.notificationRepository.create({
         user,
-        message: `Tài liệu mới "${docName}" đã được thêm vào`,
+        message: `Tài liệu mới ${docName} vừa được upload`,
         type: NotificationType.DOCUMENT,
         targetId: documentId,
         isRead: false,
       });
       const notificationSave = await this.notificationRepository.save(notification);
-      this.gateway.sendNotification(user.id, notificationSave);
+      const notificationSend = new UserNotificationDto(notificationSave);
+      this.gateway.sendNotification(user.id, notificationSend);
     });
   }
 
@@ -103,6 +119,7 @@ export class NotificationsService {
     if (already) throw new BadRequestException('Đã đăng ký theo dõi khoa này');
 
     user.subscribedFaculties.push(faculty);
+    console.log('user after push faculty: ', user);
     await this.userRepository.save(user);
 
     return { message: `Đã đăng ký theo dõi khoa ${faculty.name}` };

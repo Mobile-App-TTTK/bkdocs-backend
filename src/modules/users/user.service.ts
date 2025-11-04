@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -6,7 +12,9 @@ import * as bcrypt from 'bcrypt';
 import { GetUserProfileResponseDto } from './dtos/responses/getUserProfile.response.dto';
 import { UpdateUserProfileDto } from './dtos/requests/updateUserProfile.dto';
 import { S3Service } from '@modules/s3/s3.service';
-import { Faculty } from '@modules/documents/entities/falcuty.entity';
+import { Faculty } from '@modules/documents/entities/faculty.entity';
+import { DocumentsService } from '@modules/documents/documents.service';
+import { FollowedAndSubscribedListResponseDto } from './dtos/responses/followedAndSubscribedList.response.dto';
 
 @Injectable()
 export class UsersService {
@@ -15,6 +23,7 @@ export class UsersService {
     private readonly usersRepo: Repository<User>,
     @InjectRepository(Faculty)
     private readonly facultyRepo: Repository<Faculty>,
+
     private readonly s3Service: S3Service
   ) {}
 
@@ -48,7 +57,7 @@ export class UsersService {
   async getProfile(userId: string): Promise<GetUserProfileResponseDto> {
     const user = await this.usersRepo.findOne({
       where: { id: userId },
-      relations: ['faculty'],
+      relations: ['faculty', 'documents'],
     });
     if (!user) throw new NotFoundException('User not found');
     console.log('user: ', user);
@@ -56,14 +65,21 @@ export class UsersService {
     const imageUrl: string | undefined = user.imageKey
       ? await this.s3Service.getPresignedDownloadUrl(user.imageKey)
       : undefined;
+
+    // tính số lượng tài liệu đã upload bởi user này
     return new GetUserProfileResponseDto({
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
       imageUrl: imageUrl,
       faculty: user.faculty ? user.faculty.name : undefined,
       intakeYear: user.intakeYear ? user.intakeYear : undefined,
+      documentCount: user.documents ? user.documents.length : 0,
+      numberFollowers: user.followers ? user.followers.length : 0,
+      participationDays: user.createdAt
+        ? Math.floor((Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24))
+        : 0,
+      role: user.role,
     });
   }
 
@@ -105,5 +121,62 @@ export class UsersService {
       faculty: user.faculty ? user.faculty.name : undefined,
       intakeYear: user.intakeYear ? user.intakeYear : undefined,
     });
+  }
+
+  async toggleFollowUser(followerId: string, userIdToFollow: string): Promise<void> {
+    if (followerId === userIdToFollow) {
+      throw new BadRequestException('You cannot follow yourself');
+    }
+
+    const follower = await this.usersRepo.findOne({
+      where: { id: followerId },
+      relations: ['following'],
+    });
+    if (!follower) throw new NotFoundException('Follower user not found');
+
+    const userToFollow = await this.usersRepo.findOne({ where: { id: userIdToFollow } });
+    if (!userToFollow) throw new NotFoundException('User to follow not found');
+
+    // Kiểm tra nếu đã theo dõi rồi
+    const isAlreadyFollowing = follower.following.some((u) => u.id === userIdToFollow);
+    if (isAlreadyFollowing) {
+      // Nếu đã theo dõi, bỏ theo dõi
+      follower.following = follower.following.filter((u) => u.id !== userIdToFollow);
+    } else {
+      // Nếu chưa theo dõi, thêm theo dõi
+      follower.following.push(userToFollow);
+    }
+
+    await this.usersRepo.save(follower);
+  }
+
+  async getFollowingAndSubscribingList(
+    userId: string
+  ): Promise<FollowedAndSubscribedListResponseDto[]> {
+    const user = await this.usersRepo.findOne({
+      where: { id: userId },
+      relations: ['subscribedSubjects', 'following', 'subscribedFaculties'],
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+    return [
+      new FollowedAndSubscribedListResponseDto({
+        followingUsers: user.following.map((u) => ({
+          id: u.id,
+          name: u.name,
+          documentCount: u.documents ? u.documents.length : 0,
+        })),
+        subscribedFacultyIds: user.subscribedFaculties.map((f) => ({
+          id: f.id,
+          name: f.name,
+          documentCount: f.documents ? f.documents.length : 0,
+        })),
+        subscribedSubjectIds: user.subscribedSubjects.map((s) => ({
+          id: s.id,
+          name: s.name,
+          documentCount: s.documents ? s.documents.length : 0,
+        })),
+      }),
+    ];
   }
 }

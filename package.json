@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.908.0",
+    "@aws-sdk/lib-storage": "^3.922.0",
     "@aws-sdk/s3-request-presigner": "^3.908.0",
     "@nestjs-modules/mailer": "^2.0.2",
     "@nestjs/common": "^11.0.1",
@@ -43,8 +44,8 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "joi": "^18.0.1",
-    "nodemailer": "^7.0.9",
     "minio": "^8.0.6",
+    "nodemailer": "^7.0.9",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.16.3",
