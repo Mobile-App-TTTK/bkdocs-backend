@@ -7,14 +7,21 @@ import { VerifyOtpDto } from '@modules/auth/dtos/requests/verify-otp.dto';
 import { ChangePasswordDto } from '@modules/auth/dtos/requests/change-password.dto';
 import { RegisterRequestOtpDto } from '@modules/auth/dtos/requests/register-request-otp.dto';
 import { RegisterCompleteDto } from '@modules/auth/dtos/requests/register-complete.dto';
+import { ApiBody } from '@nestjs/swagger';
 
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
+  @ApiBody({ type: RegisterRequestOtpDto })
   @Post('register/request-otp')
   async requestRegisterOtp(@Body() dto: RegisterRequestOtpDto) {
     return this.authService.requestRegisterOtp(dto.email);
+  }
+
+  @Post('verify-otp')
+  async verifyOtp(@Body() dto: VerifyOtpDto) {
+    return this.authService.verifyOtp(dto.email, dto.otp);
   }
 
   @Post('register/complete')
@@ -30,11 +37,6 @@ export class AuthController {
   @Post('forgot-password')
   async forgot(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgot(dto.email);
-  }
-  
-  @Post('verify-otp')
-  async verifyOtp(@Body() dto: VerifyOtpDto) {
-    return this.authService.verifyOtp(dto.email, dto.otp);
   }
 
   @Post('change-password')
