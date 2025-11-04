@@ -9,6 +9,9 @@ import { RolesGuard } from '@common/guards/role.guard';
 import { Roles } from '@common/decorators/role.decorator';
 import { UserRole } from '@common/enums/user-role.enum';
 import { Status } from '@common/enums/status.enum';
+import { User } from '@modules/users/entities/user.entity';
+import { UsersService } from '@modules/users/user.service';
+import { GetUserProfileResponseDto } from '@modules/users/dtos/responses/getUserProfile.response.dto';
 @ApiTags('admin')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -16,9 +19,14 @@ import { Status } from '@common/enums/status.enum';
 @Controller('admin')
 export class AdminController {
   constructor(
-    private readonly adminService: AdminService,
-    private readonly documentsService: DocumentsService
+    private readonly documentsService: DocumentsService,
+    private readonly userService: UsersService
   ) {}
+
+  @Get('users')
+  async getAllUsers(): Promise<GetUserProfileResponseDto[]> {
+    return this.userService.getAllUsers();
+  }
 
   @ApiOperation({ summary: 'Duyệt tài liệu đang pending → active và gửi broadcast' })
   @Patch('document:id/approve')

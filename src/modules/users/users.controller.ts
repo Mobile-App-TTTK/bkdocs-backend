@@ -49,12 +49,6 @@ export class UsersController {
     private readonly documentsService: DocumentsService
   ) {}
 
-  @Roles(UserRole.ADMIN)
-  @Get()
-  async getAllUsers(): Promise<User[]> {
-    return this.userService.getAllUsers();
-  }
-
   @Get('profile')
   @ApiResponseSwaggerWrapper(GetUserProfileResponseDto)
   @ApiOperation({ summary: 'Lấy thông tin người dùng hiện tại (kèm URL avatar từ S3)' })
@@ -74,7 +68,7 @@ export class UsersController {
       properties: {
         name: { type: 'string', example: 'John Doe' },
         facultyId: { type: 'string', example: '4e5fe7ad-5163-4278-8592-8a89e67a17c5' },
-        yearOfStudy: { type: 'number', example: 3 },
+        intakeYear: { type: 'number', example: 2022 },
         avatar: {
           type: 'string',
           format: 'binary',
