@@ -71,7 +71,7 @@ export class DocumentsController {
 
     return this.documentsService.search(q);
   }
-  
+
   @Get('suggest/keyword')
   @ApiQuery({ name: 'keyword', required: true })
   @ApiOkResponse({ description: 'Suggest Keyword', type: [String] })
@@ -170,7 +170,11 @@ export class DocumentsController {
       type: 'object',
       properties: {
         file: { type: 'string', format: 'binary' },
-        facultyId: { type: 'string', example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' },
+        facultyIds: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['f47ac10b-58cc-4372-a567-0e02b2c3d479'],
+        },
         subjectId: { type: 'string', example: 'c9b1d5f4-3e2a-4d5b-8f4d-1c2b3a4d5e6f' },
         summary: { type: 'string', example: 'Tài liệu về cơ sở dữ liệu' },
         thumbnailFile: { type: 'string', format: 'binary' },
@@ -188,7 +192,7 @@ export class DocumentsController {
       thumbnailFile?: Express.Multer.File;
       images?: Express.Multer.File[];
     },
-    @Body('facultyId') facultyId: string,
+    @Body('facultyIds') facultyIds: string[],
     @Body('subjectId') subjectId: string,
     @Body('summary') summary: string,
     @Req() req: any
@@ -202,7 +206,7 @@ export class DocumentsController {
       files.images || [],
       userId,
       files.thumbnailFile,
-      facultyId,
+      facultyIds,
       subjectId,
       summary
     );

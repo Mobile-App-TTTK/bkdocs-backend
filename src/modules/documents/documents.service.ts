@@ -104,7 +104,7 @@ export class DocumentsService {
         .addGroupBy('f.name')
         .getRawMany<{ name: string; count: string }>();
 
-      return rows.map(r => ({ name: r.name, count: Number(r.count) || 0 }));
+      return rows.map((r) => ({ name: r.name, count: Number(r.count) || 0 }));
     }
 
     if (searchFor === 'subject' && keyword) {
@@ -119,7 +119,7 @@ export class DocumentsService {
         .addGroupBy('s.name')
         .getRawMany<{ name: string; count: string }>();
 
-      return rows.map(r => ({ name: r.name, count: Number(r.count) || 0 }));
+      return rows.map((r) => ({ name: r.name, count: Number(r.count) || 0 }));
     }
 
     if (q.searchFor === 'user' && keyword) {
@@ -131,7 +131,7 @@ export class DocumentsService {
         .select('u.name', 'name')
         .getRawMany<{ name: string }>();
 
-      return userRows.map(u => u.name);
+      return userRows.map((u) => u.name);
     }
 
     const qb = this.documentRepo
@@ -161,12 +161,15 @@ export class DocumentsService {
     }
 
     if (keyword) {
-      qb.andWhere(new Brackets(b => {
-        b.where('d.title ILIKE :kw')
-        .orWhere('d.description ILIKE :kw')
-        .orWhere('d.thumbnailKey ILIKE :kw')
-        .orWhere('d.fileKey ILIKE :kw');
-      }), { kw: `%${keyword}%` });
+      qb.andWhere(
+        new Brackets((b) => {
+          b.where('d.title ILIKE :kw')
+            .orWhere('d.description ILIKE :kw')
+            .orWhere('d.thumbnailKey ILIKE :kw')
+            .orWhere('d.fileKey ILIKE :kw');
+        }),
+        { kw: `%${keyword}%` }
+      );
     }
 
     qb.groupBy('d.id')
@@ -206,7 +209,7 @@ export class DocumentsService {
             downloadUrl = null;
           }
         }
-        
+
         const fileType = r.d_file_key
           ? (r.d_file_key.split('.').pop() || '').toLowerCase() || null
           : null;
@@ -232,7 +235,7 @@ export class DocumentsService {
         .where('u.name ILIKE :kw', { kw: `%${keyword}%` })
         .select('u.name', 'name')
         .getRawMany<{ name: string }>();
-      users = userRows.map(u => u.name);
+      users = userRows.map((u) => u.name);
     }
 
     if (!keyword && faculty) {
@@ -249,7 +252,9 @@ export class DocumentsService {
         name: r.name,
         count: Number(r.count) || 0,
         documents: result
-          .filter((d) => ((d.faculty?.name ?? '') || '').toLowerCase() === (r.name || '').toLowerCase())
+          .filter(
+            (d) => ((d.faculty?.name ?? '') || '').toLowerCase() === (r.name || '').toLowerCase()
+          )
           .map((d) => ({ ...d, faculty: null })),
       }));
 
@@ -270,7 +275,9 @@ export class DocumentsService {
         name: r.name,
         count: Number(r.count) || 0,
         documents: result
-          .filter((d) => ((d.subject?.name ?? '') || '').toLowerCase() === (r.name || '').toLowerCase())
+          .filter(
+            (d) => ((d.subject?.name ?? '') || '').toLowerCase() === (r.name || '').toLowerCase()
+          )
           .map((d) => ({ ...d, subject: null })),
       }));
 
@@ -280,19 +287,26 @@ export class DocumentsService {
     const onlyKeyword = Boolean(keyword) && !faculty && !subject && !q?.type && !q?.sort;
 
     if (q?.type || q?.sort || q?.faculty || q?.subject) {
-      const filtered = this.filterDocuments(result, { faculty: q?.faculty, type: q?.type, sort: q?.sort as any });
+      const filtered = this.filterDocuments(result, {
+        faculty: q?.faculty,
+        type: q?.type,
+        sort: q?.sort as any,
+      });
       return onlyKeyword ? { documents: filtered, users } : filtered;
     }
 
     return onlyKeyword ? { documents: result, users } : result;
   }
 
-  filterDocuments(docs: SlimDoc[], opts?: { faculty?: string; type?: string; sort?: 'newest' | 'oldest' | 'downloadCount' }): SlimDoc[] {
+  filterDocuments(
+    docs: SlimDoc[],
+    opts?: { faculty?: string; type?: string; sort?: 'newest' | 'oldest' | 'downloadCount' }
+  ): SlimDoc[] {
     let results = Array.isArray(docs) ? docs.slice() : [];
 
     if (opts?.faculty) {
       const f = opts.faculty.toLowerCase();
-      results = results.filter(d => (d.faculty?.name ?? '').toLowerCase().includes(f));
+      results = results.filter((d) => (d.faculty?.name ?? '').toLowerCase().includes(f));
     }
 
     if (opts?.type) {
@@ -301,11 +315,11 @@ export class DocumentsService {
         pdf: ['pdf'],
         word: ['doc', 'docx'],
         image: ['jpg', 'jpeg', 'png', 'gif'],
-        powerpoint: ['pptx']
+        powerpoint: ['pptx'],
       };
 
       const allowed = aliasMap[raw] ?? [raw];
-      results = results.filter(d => allowed.includes(((d.type ?? '') as string).toLowerCase()));
+      results = results.filter((d) => allowed.includes(((d.type ?? '') as string).toLowerCase()));
     }
 
     if (opts?.sort === 'downloadCount') {
@@ -348,9 +362,9 @@ export class DocumentsService {
 
     type Hit = { name: string };
     const hits: Hit[] = [
-      ...docs.map(d => ({ name: d.title })),
-      ...subs.map(s => ({ name: s.name })),
-      ...facs.map(f => ({ name: f.name })),
+      ...docs.map((d) => ({ name: d.title })),
+      ...subs.map((s) => ({ name: s.name })),
+      ...facs.map((f) => ({ name: f.name })),
     ];
 
     const score = (name: string) => {
@@ -364,7 +378,7 @@ export class DocumentsService {
 
     hits.sort((a, b) => score(a.name) - score(b.name));
 
-    return hits.slice(0, 5).map(h => h.name);
+    return hits.slice(0, 5).map((h) => h.name);
   }
 
   async getDownloadUrl(id: string): Promise<string> {
@@ -414,7 +428,7 @@ export class DocumentsService {
       fileKey: document.fileKey,
       uploadDate: document.uploadDate,
       subject: document.subject ? document.subject.name : null,
-      faculty: document.faculty ? document.faculty.name : null,
+      faculties: document.faculties ? document.faculties.map((f) => f.name).join(', ') : null,
       uploader: document.uploader ? document.uploader.name : null,
       downloadCount: document.downloadCount,
       status: document.status,
@@ -466,13 +480,19 @@ export class DocumentsService {
         let downloadUrl: string | null = null;
         if (r.d_thumbnail_key) {
           try {
-            downloadUrl = await this.s3Service.getPresignedDownloadUrl(r.d_thumbnail_key, r.d_title || undefined, true);
+            downloadUrl = await this.s3Service.getPresignedDownloadUrl(
+              r.d_thumbnail_key,
+              r.d_title || undefined,
+              true
+            );
           } catch {
             downloadUrl = null;
           }
         }
 
-        const fileType = r.d_file_key ? (r.d_file_key.split('.').pop() || '').toLowerCase() || null : null;
+        const fileType = r.d_file_key
+          ? (r.d_file_key.split('.').pop() || '').toLowerCase() || null
+          : null;
 
         return {
           id: r.d_id,
@@ -499,7 +519,7 @@ export class DocumentsService {
 
     const subjects = Object.values(map).map((g) => ({
       name: g.subjectName,
-      documents: g.docs.map(d => ({
+      documents: g.docs.map((d) => ({
         id: d.id,
         title: d.title,
         downloadCount: d.downloadCount,
@@ -517,7 +537,9 @@ export class DocumentsService {
     };
   }
 
-  async getDocumentsBySubject(subjectId: string): Promise<{ name: string; document_count: number; documents: SlimDoc[] }> {
+  async getDocumentsBySubject(
+    subjectId: string
+  ): Promise<{ name: string; document_count: number; documents: SlimDoc[] }> {
     const subjectEntity = await this.subjectRepo.findOne({ where: { id: subjectId } });
     if (!subjectEntity) {
       throw new NotFoundException(`Subject with ID "${subjectId}" not found`);
@@ -559,13 +581,19 @@ export class DocumentsService {
         let downloadUrl: string | null = null;
         if (r.d_thumbnail_key) {
           try {
-            downloadUrl = await this.s3Service.getPresignedDownloadUrl(r.d_thumbnail_key, r.d_title || undefined, true);
+            downloadUrl = await this.s3Service.getPresignedDownloadUrl(
+              r.d_thumbnail_key,
+              r.d_title || undefined,
+              true
+            );
           } catch {
             downloadUrl = null;
           }
         }
 
-        const fileType = r.d_file_key ? (r.d_file_key.split('.').pop() || '').toLowerCase() || null : null;
+        const fileType = r.d_file_key
+          ? (r.d_file_key.split('.').pop() || '').toLowerCase() || null
+          : null;
 
         return {
           id: r.d_id,
@@ -593,10 +621,12 @@ export class DocumentsService {
     const year = (user as any)?.yearOfStudy ?? (user as any)?.year_of_study;
 
     if (!user || !year || !user.faculty?.id) {
-      this.logger.warn(`[suggestSubjectsForUser] User ${userID} not found -> fallback random subjects`);
+      this.logger.warn(
+        `[suggestSubjectsForUser] User ${userID} not found -> fallback random subjects`
+      );
       const randomSubs = await this.pickRandomSubjects(4);
       const withUrls = await this.attachSubjectUrls(randomSubs);
-      const ids = withUrls.map(s => s.id);
+      const ids = withUrls.map((s) => s.id);
       if (ids.length === 0) return [];
       const counts = await this.subjectRepo
         .createQueryBuilder('s')
@@ -606,9 +636,17 @@ export class DocumentsService {
         .groupBy('s.id')
         .getRawMany<{ id: string; count: string }>();
 
-      const countMap = counts.reduce((acc, cur) => ({ ...acc, [cur.id]: Number(cur.count) || 0 }), {} as Record<string, number>);
+      const countMap = counts.reduce(
+        (acc, cur) => ({ ...acc, [cur.id]: Number(cur.count) || 0 }),
+        {} as Record<string, number>
+      );
 
-      return withUrls.map(s => ({ id: s.id, name: s.name, count: countMap[s.id] || 0, downloadUrl: (s as any).downloadUrl ?? null }));
+      return withUrls.map((s) => ({
+        id: s.id,
+        name: s.name,
+        count: countMap[s.id] || 0,
+        downloadUrl: (s as any).downloadUrl ?? null,
+      }));
     }
 
     const maps = await this.fysRepo.find({
@@ -621,7 +659,7 @@ export class DocumentsService {
 
     const subjects = maps.map((m) => m.subject).filter(Boolean) as Subject[];
     const withUrls = await this.attachSubjectUrls(subjects);
-    const ids = withUrls.map(s => s.id);
+    const ids = withUrls.map((s) => s.id);
     if (ids.length === 0) return [];
 
     const counts = await this.subjectRepo
@@ -632,41 +670,50 @@ export class DocumentsService {
       .groupBy('s.id')
       .getRawMany<{ id: string; count: string }>();
 
-    const countMap = counts.reduce((acc, cur) => ({ ...acc, [cur.id]: Number(cur.count) || 0 }), {} as Record<string, number>);
+    const countMap = counts.reduce(
+      (acc, cur) => ({ ...acc, [cur.id]: Number(cur.count) || 0 }),
+      {} as Record<string, number>
+    );
 
-    return withUrls.map(s => ({ id: s.id, name: s.name, count: countMap[s.id] || 0, downloadUrl: (s as any).downloadUrl ?? null }));
+    return withUrls.map((s) => ({
+      id: s.id,
+      name: s.name,
+      count: countMap[s.id] || 0,
+      downloadUrl: (s as any).downloadUrl ?? null,
+    }));
   }
 
   private async pickRandomSubjects(n = 4): Promise<Subject[]> {
-    return this.subjectRepo
-      .createQueryBuilder('s')
-      .orderBy('RANDOM()')
-      .take(n)
-      .getMany();
+    return this.subjectRepo.createQueryBuilder('s').orderBy('RANDOM()').take(n).getMany();
   }
 
-  private async attachSubjectUrls(subjects: Subject[], opts?: { download?: boolean; expiresInSeconds?: number }) : Promise<Subject[]> {
+  private async attachSubjectUrls(
+    subjects: Subject[],
+    opts?: { download?: boolean; expiresInSeconds?: number }
+  ): Promise<Subject[]> {
     const download = opts?.download ?? false;
     const expiresInSeconds = opts?.expiresInSeconds ?? 3600;
 
-    const withUrls = await Promise.all(subjects.map(async (s) => {
-      let url: string | null = null;
-      if ((s as any).fileKey) {
-        url = await this.s3Service.getPresignedDownloadUrl(
-          (s as any).fileKey,
-          s.name,            
-          download,
-          expiresInSeconds
-        );
-      }
-      
-      (s as any).downloadUrl = url;
-      return s;
-    }));
+    const withUrls = await Promise.all(
+      subjects.map(async (s) => {
+        let url: string | null = null;
+        if ((s as any).fileKey) {
+          url = await this.s3Service.getPresignedDownloadUrl(
+            (s as any).fileKey,
+            s.name,
+            download,
+            expiresInSeconds
+          );
+        }
+
+        (s as any).downloadUrl = url;
+        return s;
+      })
+    );
 
     return withUrls;
   }
-  
+
   async getSuggestions(): Promise<SuggestDocumentsResponseDto> {
     // limited to top 3 suggestion for simplicity
 
@@ -703,7 +750,7 @@ export class DocumentsService {
     // Placeholder logic for user-specific suggestions
     const suggestedDocuments: Document[] | null = await this.documentRepo.find({
       order: { downloadCount: 'DESC' },
-      where: { faculty: user.faculty },
+      where: { faculties: { id: user.faculty?.id } },
       take: 10,
     });
 
@@ -730,7 +777,7 @@ export class DocumentsService {
     images: Express.Multer.File[],
     userId: string,
     thumbnailFile?: Express.Multer.File,
-    facultyId?: string,
+    facultyIds?: string[],
     subjectId?: string,
     description?: string
   ): Promise<DocumentResponseDto> {
@@ -753,7 +800,7 @@ export class DocumentsService {
     }
 
     // 4️ Tạo Document entity
-    const falcuty = facultyId ? await this.facultyRepo.findOneBy({ id: facultyId }) : null;
+    const faculties = facultyIds ? await this.facultyRepo.findByIds(facultyIds) : [];
     const subject = subjectId ? await this.subjectRepo.findOneBy({ id: subjectId }) : null;
     const doc = this.documentRepo.create({
       title: file.originalname,
@@ -761,7 +808,7 @@ export class DocumentsService {
       fileKey,
       thumbnailKey,
       uploader: uploaderUser,
-      faculty: facultyId ? falcuty : null,
+      faculties: facultyIds ? faculties : [],
       subject: subjectId ? subject : null,
       status: 'pending',
     } as DeepPartial<Document>);
@@ -785,7 +832,7 @@ export class DocumentsService {
     const docName: string = savedDoc.title;
     this.NotificationsService.sendNewDocumentNotification(
       documentId,
-      facultyId,
+      facultyIds ? facultyIds : undefined,
       subjectId,
       docName
     );
@@ -823,10 +870,10 @@ export class DocumentsService {
       throw new BadRequestException('Tài liệu đã được duyệt trước đó');
 
     document.status = Status.ACTIVE;
-    if (document.faculty || document.subject) {
+    if (document.faculties || document.subject) {
       await this.NotificationsService.sendNewDocumentNotification(
         document.id,
-        document.faculty.id,
+        document.faculties.map((faculty) => faculty.id),
         document.subject.id,
         document.title
       );

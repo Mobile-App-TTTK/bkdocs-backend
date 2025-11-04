@@ -6,6 +6,8 @@ import {
   CreateDateColumn,
   OneToMany,
   JoinColumn,
+  ManyToMany,
+  JoinTable,
 } from 'typeorm';
 import { User } from '@modules/users/entities/user.entity';
 import { Subject } from '@modules/documents/entities/subject.entity';
@@ -14,7 +16,7 @@ import { Rating } from '@modules/ratings/entities/rating.entity';
 import { Comment } from '@modules/comments/entities/comment.entity';
 import { Image } from '@modules/documents/entities/image.entity';
 import { Status } from '@common/enums/status.enum';
-
+import { DocumentType } from '@modules/documents/entities/document-type.entity';
 @Entity('documents')
 export class Document {
   @PrimaryGeneratedColumn('uuid')
@@ -43,6 +45,9 @@ export class Document {
   })
   status: string;
 
+  @Column({ name: 'file_type', nullable: true })
+  fileType: string;
+
   @CreateDateColumn({ name: 'upload_date' })
   uploadDate: Date;
 
@@ -60,12 +65,12 @@ export class Document {
   subject: Subject;
 
   /** Khoa mà tài liệu thuộc về */
-  @ManyToOne(() => Faculty, (faculty) => faculty.documents, {
+  @ManyToMany(() => Faculty, (faculty) => faculty.documents, {
     nullable: true,
     onDelete: 'SET NULL',
   })
-  @JoinColumn({ name: 'faculty_id' })
-  faculty: Faculty;
+  @JoinTable({ name: 'document_faculties' })
+  faculties: Faculty[];
 
   @OneToMany(() => Rating, (rating) => rating.document)
   ratings: Rating[];
@@ -75,4 +80,11 @@ export class Document {
 
   @OneToMany(() => Image, (image) => image.document)
   images: Image[];
+
+  @ManyToOne(() => DocumentType, (documentType) => documentType.documents, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'document_type_id' })
+  documentType: DocumentType;
 }

@@ -55,7 +55,7 @@ export class NotificationsService {
 
   async sendNewDocumentNotification(
     documentId: string,
-    facultyId: string | undefined,
+    facultyIds: string[] | undefined,
     subjectId: string | undefined,
     docName: string
   ) {
@@ -63,7 +63,7 @@ export class NotificationsService {
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.subscribedFaculties', 'faculty')
       .leftJoinAndSelect('user.subscribedSubjects', 'subject')
-      .where('faculty.id = :facultyId OR subject.id = :subjectId', { facultyId, subjectId })
+      .where('faculty.id IN (:...facultyIds) OR subject.id = :subjectId', { facultyIds, subjectId })
       .getMany();
     users.map(async (user) => {
       const notification = this.notificationRepository.create({

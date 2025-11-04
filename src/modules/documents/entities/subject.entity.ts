@@ -1,10 +1,4 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  OneToMany,
-  ManyToMany,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToMany } from 'typeorm';
 import { Document } from '@modules/documents/entities/document.entity';
 import { User } from '@modules/users/entities/user.entity';
 import { FacultyYearSubject } from '@modules/documents/entities/faculty-year-subject.entity';
@@ -19,6 +13,9 @@ export class Subject {
 
   @Column({ type: 'text', nullable: true })
   description: string;
+
+  @Column({ name: 'image_key', nullable: true })
+  imageKey: string;
 
   /** Một môn học có thể có nhiều tài liệu */
   @OneToMany(() => Document, (document) => document.subject)
