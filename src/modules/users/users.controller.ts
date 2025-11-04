@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { User } from './entities/user.entity';
 import { UsersService } from './user.service';
 import { UseGuards } from '@nestjs/common';
@@ -13,6 +13,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { GetUserProfileResponseDto } from './dtos/responses/getUserProfile.response.dto';
 import { UpdateUserProfileDto } from './dtos/requests/updateUserProfile.dto';
 import { ApiResponseSwaggerWrapper } from '@common/decorators/api-response-swagger-wapper.decorator';
+import { FollowResponseDto } from './dtos/responses/follow.response.dto';
 @ApiTags('users')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -67,4 +68,11 @@ export class UsersController {
     const dto = new UpdateUserProfileDto({ name, facultyId, intakeYear: intakeYear });
     return this.userService.updateProfile(req.user.userId, dto, avatar);
   }
+
+  @Post(':id/follow')
+  @ApiOperation({ summary: 'Follow User' })
+  async toggleFollow(@Param('id') targetUserId: string, @Req() req: any): Promise<FollowResponseDto> {
+    const me = req.user?.userId;
+    return this.userService.FollowUser(me, targetUserId);
+}
 }
