@@ -12,6 +12,23 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+#     networks:
+#       - mobile-net   # 👈 gán vào mạng riêng
+
+#   nestjs:
+#     # image: 528192012668.dkr.ecr.ap-southeast-1.amazonaws.com/mobile-app-backend:latest
+#     image: mobile-app-backend:latest
+#     env_file:
+#       - .env
+#     ports:
+#       - "8080:8080"
+#     depends_on:
+#       - postgres
+#     networks:
+#       - mobile-net   # 👈 cùng mạng với postgres
+
+# networks:
+#   mobile-net:       # 👈 network kiểu bridge
+#     driver: bridge
 volumes:
   pgdata:
-  minio_data:
