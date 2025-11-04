@@ -6,11 +6,11 @@ export class RegisterCompleteDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ example: 'newuser@example.com' })
+  @ApiProperty({ example: 'khanhzip14@gmail.com' })
   @IsEmail()
   email: string;
 
-  @ApiProperty({ example: 'NewStrongPass123!' })
+  @ApiProperty({ example: '121314aA!' })
   @MinLength(8)
   password: string;
 
