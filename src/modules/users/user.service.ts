@@ -38,8 +38,19 @@ export class UsersService {
     return this.usersRepo.findOne({ where: { email } });
   }
 
-  async getAllUsers(): Promise<User[]> {
-    return this.usersRepo.find();
+  async getAllUsers(): Promise<GetUserProfileResponseDto[]> {
+    const users = await this.usersRepo.find();
+    return users.map(
+      (user) =>
+        new GetUserProfileResponseDto({
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          faculty: user.faculty ? user.faculty.name : undefined,
+          intakeYear: user.intakeYear ? user.intakeYear : undefined,
+        })
+    );
   }
 
   async findById(id: string): Promise<User | null> {
