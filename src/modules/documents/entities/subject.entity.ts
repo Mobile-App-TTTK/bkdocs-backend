@@ -14,8 +14,11 @@ export class Subject {
   @Column({ type: 'text', nullable: true })
   description: string;
 
-  @Column({ name: 'image_key', nullable: true })
-  imageKey: string;
+  @Column({ name: 'image_key', nullable: true, type: 'text' })
+  imageKey: string | null;
+
+  @Column({ name: 'image_url', type: 'text', nullable: true })
+  imageUrl: string | null;
 
   /** Một môn học có thể có nhiều tài liệu */
   @OneToMany(() => Document, (document) => document.subject)

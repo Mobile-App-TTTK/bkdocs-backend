@@ -1,14 +1,13 @@
 import {
   Injectable,
   Logger,
-  InternalServerErrorException,
   NotFoundException,
   BadRequestException,
   Inject,
-  Req,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, ILike, Repository, DeepPartial } from 'typeorm';
+import { Brackets, ILike, Repository, DeepPartial, In } from 'typeorm';
 
 import { Document } from './entities/document.entity';
 import { DetailsDocumentResponseDto } from './dtos/responses/detailsDocument.response.dto';
@@ -17,20 +16,17 @@ import { S3Service } from '@modules/s3/s3.service';
 import { FacultyYearSubject } from './entities/faculty-year-subject.entity';
 import { UsersService } from '@modules/users/user.service';
 
-import {
-  SuggestDocumentResponseDto,
-  SuggestDocumentsResponseDto,
-} from './dtos/responses/suggestDocument.response.dto';
+import { SuggestAllFacultiesDocumentsResponseDto } from './dtos/responses/suggestAllFacultiesDocument.response.dto';
 import { User } from '@modules/users/entities/user.entity';
-import { Faculty } from '@modules/documents/entities/falcuty.entity';
+import { Faculty } from '@modules/documents/entities/faculty.entity';
 import { Subject } from '@modules/documents/entities/subject.entity';
-import { AllFacultiesAndSubjectsDto } from './dtos/responses/allFalcutiesAndSubjects.response.dto';
+import { DocumentType } from '@modules/documents/entities/document-type.entity';
+import { AllFacultiesAndSubjectsAndDocumentTypesDto } from './dtos/responses/allFalcutiesAndSubjects.response.dto';
 import { DocumentResponseDto } from './dtos/responses/document.response.dto';
 import { Image } from './entities/image.entity';
 import { NotificationsService } from '@modules/notifications/notifications.service';
-import { NotificationType } from '@common/enums/notification-type.enum';
-import { CreateNotificationDto } from '@modules/notifications/dtos/create-notification.dto';
 import { Status } from '@common/enums/status.enum';
+import { ApiOkResponse } from '@nestjs/swagger';
 
 type SlimDoc = {
   id: string;
@@ -86,6 +82,7 @@ export class DocumentsService {
     @InjectRepository(Document)
     private readonly documentRepo: Repository<Document>,
     @InjectRepository(FacultyYearSubject) private readonly fysRepo: Repository<FacultyYearSubject>,
+    @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
@@ -93,10 +90,12 @@ export class DocumentsService {
     private readonly facultyRepo: Repository<Faculty>,
     @InjectRepository(Subject)
     private readonly subjectRepo: Repository<Subject>,
+    @InjectRepository(DocumentType)
+    private readonly documentTypeRepo: Repository<DocumentType>,
     @InjectRepository(Image)
     private readonly imageRepo: Repository<Image>,
     private readonly s3Service: S3Service,
-    private readonly NotificationsService: NotificationsService
+    private readonly notificationsService: NotificationsService
   ) {}
 
   async search(q: SearchDocumentsDto, currentUserId?: string): Promise<any> {
@@ -269,7 +268,7 @@ export class DocumentsService {
             downloadUrl = await this.s3Service.getPresignedDownloadUrl(
               r.d_thumbnail_key,
               r.d_title || undefined,
-              true
+              false
             );
           } catch {
             downloadUrl = null;
@@ -496,15 +495,26 @@ export class DocumentsService {
       id: document.id,
       title: document.title,
       description: document.description,
-      fileKey: document.fileKey,
+      fileUrl: document.fileKey
+        ? await this.s3Service.getPresignedDownloadUrl(document.fileKey, document.title)
+        : null,
       uploadDate: document.uploadDate,
       subject: document.subject ? document.subject.name : null,
-      faculties: document.faculties ? document.faculties.map((f) => f.name).join(', ') : null,
-      uploader: document.uploader ? document.uploader.name : null,
+      faculties: document.faculties ? document.faculties.map((f) => f.name) : null,
+      uploader: document.uploader
+        ? {
+            name: document.uploader.name,
+            id: document.uploader.id,
+            isVerified: document.uploader.isVerified,
+            createdAt: document.uploader.createdAt,
+          }
+        : null,
       downloadCount: document.downloadCount,
       status: document.status,
       images: images ? images : [],
-      thumbnailKey: document.thumbnailKey,
+      thumbnailUrl: document.thumbnailKey
+        ? await this.s3Service.getPresignedDownloadUrl(document.thumbnailKey, document.title)
+        : null,
       overallRating,
     });
   }
@@ -907,62 +917,74 @@ export class DocumentsService {
     return withUrls;
   }
 
-  async getSuggestions(): Promise<SuggestDocumentsResponseDto> {
-    // limited to top 3 suggestion for simplicity
-
+  async getSuggestions(): Promise<DocumentResponseDto[]> {
     const suggestedDocuments: Document[] | null = await this.documentRepo.find({
       order: { downloadCount: 'DESC' },
-      take: 3,
-    });
-
-    if (!suggestedDocuments) {
-      throw new NotFoundException('No documents found for suggestions');
-    }
-    const documents: SuggestDocumentResponseDto[] = suggestedDocuments.map(
-      (suggestedDocument) =>
-        new SuggestDocumentResponseDto({
-          id: suggestedDocument.id,
-          title: suggestedDocument.title,
-          uploadDate: suggestedDocument.uploadDate,
-          downloadCount: suggestedDocument.downloadCount,
-        })
-    );
-    return new SuggestDocumentsResponseDto({
-      documents,
-    });
-  }
-
-  async getUserSuggestions(userId: string): Promise<SuggestDocumentsResponseDto> {
-    const user: User | null = await this.userRepo.findOne({
-      where: { id: userId },
-      relations: ['faculty'],
-    });
-    if (!user) {
-      throw new NotFoundException(`User with ID "${userId}" not found`);
-    }
-    // Placeholder logic for user-specific suggestions
-    const suggestedDocuments: Document[] | null = await this.documentRepo.find({
-      order: { downloadCount: 'DESC' },
-      where: { faculties: { id: user.faculty?.id } },
+      where: { status: Status.ACTIVE },
+      relations: ['subject'],
       take: 10,
     });
 
-    const documents: SuggestDocumentResponseDto[] = suggestedDocuments.map(
-      (suggestedDocument) =>
-        new SuggestDocumentResponseDto({
-          id: suggestedDocument.id,
-          title: suggestedDocument.title,
-          uploadDate: suggestedDocument.uploadDate,
-          downloadCount: suggestedDocument.downloadCount,
-        })
-    );
     if (!suggestedDocuments) {
       throw new NotFoundException('No documents found for suggestions');
     }
+    const documents: DocumentResponseDto[] = await Promise.all(
+      suggestedDocuments.map(
+        async (suggestedDocument) =>
+          new DocumentResponseDto({
+            id: suggestedDocument.id,
+            title: suggestedDocument.title,
+            thumbnailUrl: suggestedDocument.thumbnailKey
+              ? await this.s3Service.getPresignedDownloadUrl(
+                  suggestedDocument.thumbnailKey,
+                  suggestedDocument.title || undefined,
+                  false
+                )
+              : undefined,
+            subject: suggestedDocument.subject ? suggestedDocument.subject.name : undefined,
+            fileType: suggestedDocument.fileType || undefined,
+            uploadDate: suggestedDocument.uploadDate,
+            downloadCount: suggestedDocument.downloadCount,
+          })
+      )
+    );
+    return documents;
+  }
 
-    return new SuggestDocumentsResponseDto({
-      documents,
+  async getAllFacultiesSuggestions(): Promise<SuggestAllFacultiesDocumentsResponseDto[]> {
+    const faculties = await this.facultyRepo.find({
+      relations: ['documents'],
     });
+    const suggestions: SuggestAllFacultiesDocumentsResponseDto[] = await Promise.all(
+      faculties.map(async (faculty) => {
+        return new SuggestAllFacultiesDocumentsResponseDto({
+          facultyId: faculty.id,
+          facultyName: faculty.name,
+          documents: await Promise.all(
+            faculty.documents
+              .filter((doc) => doc.status === Status.ACTIVE)
+              .map(async (doc) => {
+                return new DocumentResponseDto({
+                  id: doc.id,
+                  title: doc.title,
+                  uploadDate: doc.uploadDate,
+                  fileType: doc.fileType || undefined,
+                  thumbnailUrl: doc.thumbnailKey
+                    ? await this.s3Service.getPresignedDownloadUrl(
+                        doc.thumbnailKey,
+                        doc.title || undefined,
+                        false
+                      )
+                    : undefined,
+                  downloadCount: doc.downloadCount,
+                });
+              })
+          ),
+        });
+      })
+    );
+
+    return suggestions;
   }
 
   async uploadDocument(
@@ -972,7 +994,9 @@ export class DocumentsService {
     thumbnailFile?: Express.Multer.File,
     facultyIds?: string[],
     subjectId?: string,
-    description?: string
+    documentTypeId?: string,
+    description?: string,
+    fileType: string = ''
   ): Promise<DocumentResponseDto> {
     if (!file) throw new BadRequestException('Thiếu file tải lên.');
 
@@ -991,10 +1015,13 @@ export class DocumentsService {
     if (thumbnailFile) {
       thumbnailKey = await this.s3Service.uploadFile(thumbnailFile, 'thumbnails');
     }
-
     // 4️ Tạo Document entity
-    const faculties = facultyIds ? await this.facultyRepo.findByIds(facultyIds) : [];
+
+    const faculties = facultyIds ? await this.facultyRepo.findBy({ id: In(facultyIds) }) : [];
     const subject = subjectId ? await this.subjectRepo.findOneBy({ id: subjectId }) : null;
+    const documentType = documentTypeId
+      ? await this.documentTypeRepo.findOneBy({ id: documentTypeId })
+      : null;
     const doc = this.documentRepo.create({
       title: file.originalname,
       description: description || null,
@@ -1003,9 +1030,10 @@ export class DocumentsService {
       uploader: uploaderUser,
       faculties: facultyIds ? faculties : [],
       subject: subjectId ? subject : null,
+      documentType: documentType,
       status: 'pending',
+      fileType: fileType || (file.originalname.split('.').pop() || '').toLowerCase(),
     } as DeepPartial<Document>);
-
     const savedDoc = await this.documentRepo.save(doc);
 
     //  Upload images liên quan (nếu có)
@@ -1019,11 +1047,10 @@ export class DocumentsService {
 
       await this.imageRepo.save(imageEntities);
     }
-
     // 6 Gửi thông báo (nếu có module Notification)
     const documentId: string = savedDoc.id;
     const docName: string = savedDoc.title;
-    this.NotificationsService.sendNewDocumentNotification(
+    this.notificationsService.sendNewDocumentNotification(
       documentId,
       facultyIds ? facultyIds : undefined,
       subjectId,
@@ -1036,62 +1063,185 @@ export class DocumentsService {
       id: savedDoc.id,
       title: savedDoc.title,
       description: savedDoc.description,
-      fileKey: savedDoc.fileKey,
-      thumbnailKey: savedDoc.thumbnailKey,
+      thumbnailUrl: savedDoc.thumbnailKey
+        ? await this.s3Service.getPresignedDownloadUrl(
+            savedDoc.thumbnailKey!,
+            savedDoc.title || undefined,
+            false
+          )
+        : undefined,
       uploadDate: savedDoc.uploadDate,
       downloadUrl,
     });
   }
 
-  async getAllFacultiesAndSubjects(): Promise<AllFacultiesAndSubjectsDto> {
+  async getAllFacultiesAndSubjectsAndDocumentTypes(): Promise<AllFacultiesAndSubjectsAndDocumentTypesDto> {
     const faculties = await this.facultyRepo.find();
     const subjects = await this.subjectRepo.find();
-    return new AllFacultiesAndSubjectsDto({
+    const documentTypes = await this.documentTypeRepo.find();
+    return new AllFacultiesAndSubjectsAndDocumentTypesDto({
       faculties: faculties.map((f) => ({ id: f.id, name: f.name })),
       subjects: subjects.map((s) => ({ id: s.id, name: s.name })),
+      documentTypes: documentTypes.map((dt) => ({ id: dt.id, name: dt.name })),
     });
   }
 
   async updateDocumentStatus(id: string, status: string): Promise<Document> {
     const document = await this.documentRepo.findOne({
       where: { id },
-      relations: ['faculty', 'subject'],
+      relations: ['faculties', 'subject'],
     });
+
+    console.log('document found:', document);
     if (!document) throw new NotFoundException('Không tìm thấy tài liệu');
 
     if (document.status === Status.ACTIVE)
       throw new BadRequestException('Tài liệu đã được duyệt trước đó');
-
     document.status = Status.ACTIVE;
     if (document.faculties || document.subject) {
-      await this.NotificationsService.sendNewDocumentNotification(
+      await this.notificationsService.sendNewDocumentNotification(
         document.id,
-        document.faculties.map((faculty) => faculty.id),
-        document.subject.id,
+        document.faculties ? document.faculties.map((faculty) => faculty.id) : [],
+        document.subject ? document.subject.id : undefined,
         document.title
       );
     }
-
+    console.log('Document status updated to ACTIVE');
     return await this.documentRepo.save(document);
   }
 
   async getPendingDocuments(
     page: number,
-    limit: number
-  ): Promise<{ data: Document[]; total: number; page: number; totalPages: number }> {
-    const [data, total] = await this.documentRepo.findAndCount({
-      where: { status: Status.PENDING },
-      order: { uploadDate: 'DESC' },
-      take: limit,
-      skip: (page - 1) * limit,
-      relations: ['uploader', 'faculty', 'subject'],
-    });
+    limit: number,
+    fullTextSearch?: string
+  ): Promise<{ data: DocumentResponseDto[]; total: number; page: number; totalPages: number }> {
+    const queryBuilder = this.documentRepo
+      .createQueryBuilder('document')
+      .leftJoinAndSelect('document.uploader', 'uploader')
+      .leftJoinAndSelect('document.faculties', 'faculties')
+      .leftJoinAndSelect('document.subject', 'subject')
+      .where('document.status = :status', { status: Status.PENDING });
+
+    // Thêm full-text search nếu có keyword
+    if (fullTextSearch && fullTextSearch.trim()) {
+      const searchTerm = `%${fullTextSearch.trim()}%`;
+      queryBuilder.andWhere(
+        new Brackets((qb) => {
+          qb.where('document.title ILIKE :searchTerm', { searchTerm })
+            .orWhere('document.description ILIKE :searchTerm', { searchTerm })
+            .orWhere('subject.name ILIKE :searchTerm', { searchTerm })
+            .orWhere('faculties.name ILIKE :searchTerm', { searchTerm })
+            .orWhere('uploader.name ILIKE :searchTerm', { searchTerm });
+        })
+      );
+    }
+
+    const [data, total] = await queryBuilder
+      .orderBy('document.uploadDate', 'DESC')
+      .take(limit)
+      .skip((page - 1) * limit)
+      .getManyAndCount();
+
+    const dtoData = await Promise.all(
+      data.map(
+        async (doc) =>
+          new DocumentResponseDto({
+            id: doc.id,
+            title: doc.title,
+            description: doc.description,
+            thumbnailUrl: doc.thumbnailKey
+              ? await this.s3Service.getPresignedDownloadUrl(
+                  doc.thumbnailKey!,
+                  doc.title || undefined,
+                  false
+                )
+              : undefined,
+            uploadDate: doc.uploadDate,
+            downloadUrl: doc.fileKey
+              ? await this.s3Service.getPresignedDownloadUrl(
+                  doc.fileKey!,
+                  doc.title || undefined,
+                  false
+                )
+              : undefined,
+            uploader: doc.uploader
+              ? {
+                  id: doc.uploader.id,
+                  name: doc.uploader.name,
+                  isVerified: doc.uploader.isVerified,
+                  createdAt: doc.uploader.createdAt,
+                }
+              : undefined,
+            faculties: doc.faculties ? doc.faculties.map((f) => f.name) : undefined,
+            subject: doc.subject ? doc.subject.name : undefined,
+          })
+      )
+    );
 
     return {
-      data,
+      data: dtoData,
       total,
       page,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  async getDocumentsByUserId(
+    userId: string,
+    limit: number,
+    page: number
+  ): Promise<DocumentResponseDto[]> {
+    const documents = await this.documentRepo.find({
+      where: { uploader: { id: userId } },
+      relations: ['faculties', 'subject'],
+      take: limit,
+      skip: limit * (page - 1),
+    });
+
+    return Promise.all(
+      documents.map(
+        async (doc) =>
+          new DocumentResponseDto({
+            id: doc.id,
+            title: doc.title,
+            description: doc.description,
+            thumbnailUrl: doc.thumbnailKey
+              ? await this.s3Service.getPresignedDownloadUrl(
+                  doc.thumbnailKey!,
+                  doc.title || undefined,
+                  false
+                )
+              : undefined,
+            uploadDate: doc.uploadDate,
+            downloadUrl: doc.fileKey
+              ? await this.s3Service.getPresignedDownloadUrl(
+                  doc.fileKey!,
+                  doc.title || undefined,
+                  false
+                )
+              : undefined,
+          })
+      )
+    );
+  }
+
+  async createSubject(
+    name: string,
+    description: string,
+    image: Express.Multer.File
+  ): Promise<Subject> {
+    const existingSubject = await this.subjectRepo.findOneBy({ name });
+    if (existingSubject) {
+      throw new BadRequestException(`Subject with name "${name}" already exists`);
+    }
+
+    const imageKey = image ? await this.s3Service.uploadFile(image, 'subject-images') : null;
+    const newSubject = await this.subjectRepo.create({
+      name,
+      description,
+      imageKey,
+    });
+
+    return this.subjectRepo.save(newSubject);
   }
 }

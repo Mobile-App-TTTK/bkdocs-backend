@@ -7,7 +7,7 @@ import { FacultyYearSubject } from '@modules/documents/entities/faculty-year-sub
 export class Faculty {
   @PrimaryGeneratedColumn('uuid')
   id: string;
-
+  // đi chung với khoa, ngành
   @Column()
   name: string;
 
@@ -17,6 +17,8 @@ export class Faculty {
   @Column({ name: 'image_key', nullable: true })
   imageKey: string;
 
+  @Column({ name: 'image_url', type: 'text', nullable: true })
+  imageUrl: string;
   /** Một khoa có thể có nhiều tài liệu */
   @ManyToMany(() => Document, (document) => document.faculties)
   documents: Document[];

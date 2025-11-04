@@ -8,6 +8,9 @@ export class GetUserProfileResponseDto {
   @ApiProperty({ required: false }) imageUrl?: string;
   @ApiProperty({ required: false }) faculty?: string;
   @ApiProperty({ required: false }) intakeYear?: number;
+  @ApiProperty() documentCount?: number;
+  @ApiProperty() numberFollowers: number;
+  @ApiProperty() participationDays: number;
   constructor(partial: Partial<GetUserProfileResponseDto>) {
     Object.assign(this, partial);
   }

@@ -11,7 +11,7 @@ import {
 } from 'typeorm';
 import { User } from '@modules/users/entities/user.entity';
 import { Subject } from '@modules/documents/entities/subject.entity';
-import { Faculty } from '@modules/documents/entities/falcuty.entity';
+import { Faculty } from '@modules/documents/entities/faculty.entity';
 import { Rating } from '@modules/ratings/entities/rating.entity';
 import { Comment } from '@modules/comments/entities/comment.entity';
 import { Image } from '@modules/documents/entities/image.entity';
