@@ -7,7 +7,7 @@ import { FacultyYearSubject } from '@modules/documents/entities/faculty-year-sub
 export class Faculty {
   @PrimaryGeneratedColumn('uuid')
   id: string;
-
+  // đi chung với khoa, ngành
   @Column()
   name: string;
 
