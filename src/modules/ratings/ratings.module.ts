@@ -1,16 +1,19 @@
 import { Module } from '@nestjs/common';
-import { RatesController } from './ratings.controller';
-import { RatesService } from './ratings.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Rating } from './entities/rating.entity';
 import { Comment } from '@modules/comments/entities/comment.entity';
 import { Document } from '@modules/documents/entities/document.entity';
 import { User } from '@modules/users/entities/user.entity';
-import { Type } from 'class-transformer';
+import { RatesService } from './ratings.service';
+import { RatesController } from './ratings.controller';
+import { S3Module } from '@modules/s3/s3.module';
 
 @Module({
-  controllers: [RatesController],
+  imports: [
+    TypeOrmModule.forFeature([Rating, Comment, Document, User]),
+    S3Module,
+  ],
   providers: [RatesService],
-  imports: [TypeOrmModule.forFeature([Rating, Comment, Document, User])],
+  controllers: [RatesController],
 })
 export class RatesModule {}
