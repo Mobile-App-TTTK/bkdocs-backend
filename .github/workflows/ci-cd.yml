@@ -57,7 +57,10 @@ jobs:
       - name: Verify typeorm.config.ts version
         run: |
           echo "===== typeorm.config.ts HEAD content ====="
-          grep migrations typeorm.config.ts
+      - name: Debug Git commit
+        run: |
+          echo "GitHub SHA: ${{ github.sha }}"
+          git log -1 --oneline
       - name: Build Docker image
         run: |
           IMAGE_TAG=latest
