@@ -222,17 +222,6 @@ export class DocumentsController {
     );
   }
 
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Duyệt tài liệu đang pending → active và gửi broadcast' })
-  @Patch(':id/approve')
-  async approveDocument(@Param('id') docId: string) {
-    const document = await this.documentsService.updateDocumentStatus(docId, Status.ACTIVE);
-
-    return {
-      message: `Đã duyệt tài liệu ${document.title}.`,
-    };
-  }
-
   @ApiOperation({ summary: 'Lấy tất cả khoa, môn học và loại tài liệu (ID và tên)' })
   @ApiResponseSwaggerWrapper(Document)
   @ApiErrorResponseSwaggerWrapper()
