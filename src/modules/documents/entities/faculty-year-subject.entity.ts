@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
-import { Faculty } from '@modules/documents/entities/falcuty.entity';
+import { Faculty } from '@modules/documents/entities/faculty.entity';
 import { Subject } from '@modules/documents/entities/subject.entity';
 
 @Entity('faculty_year_subjects')

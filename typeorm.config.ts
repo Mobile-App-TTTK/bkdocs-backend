@@ -6,7 +6,7 @@ import { User } from '@modules/users/entities/user.entity';
 import { Document } from '@modules/documents/entities/document.entity';
 import { Rating } from '@modules/ratings/entities/rating.entity';
 import { Subject } from '@modules/documents/entities/subject.entity';
-import { Faculty } from '@modules/documents/entities/falcuty.entity';
+import { Faculty } from '@modules/documents/entities/faculty.entity';
 import { Notification } from '@modules/notifications/entities/notification.entity';
 import { Comment } from '@modules/comments/entities/comment.entity';
 // Hàm đọc biến môi trường (ưu tiên Docker secrets)

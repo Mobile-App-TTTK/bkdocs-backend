@@ -1,8 +1,28 @@
-import { Body, Controller, Get, Patch, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  forwardRef,
+  Get,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
 import { User } from './entities/user.entity';
 import { UsersService } from './user.service';
 import { UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 // Guards
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { Roles } from '@common/decorators/role.decorator';
@@ -13,6 +33,9 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { GetUserProfileResponseDto } from './dtos/responses/getUserProfile.response.dto';
 import { UpdateUserProfileDto } from './dtos/requests/updateUserProfile.dto';
 import { ApiResponseSwaggerWrapper } from '@common/decorators/api-response-swagger-wapper.decorator';
+import { DocumentResponseDto } from '@modules/documents/dtos/responses/document.response.dto';
+import { DocumentsService } from '@modules/documents/documents.service';
+import { FollowedAndSubscribedListResponseDto } from './dtos/responses/followedAndSubscribedList.response.dto';
 @ApiTags('users')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -20,7 +43,11 @@ import { ApiResponseSwaggerWrapper } from '@common/decorators/api-response-swagg
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('users')
 export class UsersController {
-  constructor(private userService: UsersService) {}
+  constructor(
+    private userService: UsersService,
+    @Inject(forwardRef(() => DocumentsService))
+    private readonly documentsService: DocumentsService
+  ) {}
 
   @Roles(UserRole.ADMIN)
   @Get()
@@ -66,5 +93,37 @@ export class UsersController {
   ): Promise<GetUserProfileResponseDto> {
     const dto = new UpdateUserProfileDto({ name, facultyId, intakeYear: intakeYear });
     return this.userService.updateProfile(req.user.userId, dto, avatar);
+  }
+
+  @Get(':userId/profile')
+  @ApiResponseSwaggerWrapper(GetUserProfileResponseDto)
+  @ApiOperation({ summary: 'Lấy thông tin người dùng (kèm URL avatar từ S3)' })
+  async getUserProfile(@Param('userId') userId: string): Promise<GetUserProfileResponseDto> {
+    return this.userService.getProfile(userId);
+  }
+
+  // Phân trang
+  @Get(':userId/documents')
+  @ApiResponseSwaggerWrapper(DocumentResponseDto, { status: 200, isArray: true })
+  @ApiOperation({ summary: 'Lấy danh sách tài liệu của người dùng' })
+  async getUserDocuments(
+    @Param('userId') userId: string,
+    @Query('limit') limit: number,
+    @Query('page') page: number
+  ): Promise<DocumentResponseDto[]> {
+    return this.documentsService.getDocumentsByUserId(userId, limit, page);
+  }
+
+  @Post(':userId/toggle-follow')
+  @ApiOperation({ summary: 'Theo dõi hoặc bỏ theo dõi người dùng khác' })
+  async toggleFollowUser(@Req() req: any, @Param('userId') userIdToFollow: string): Promise<void> {
+    return this.userService.toggleFollowUser(req.user.userId, userIdToFollow);
+  }
+
+  @Get('following-and-subscribing-list')
+  async getFollowingAndSubscribingList(
+    @Req() req: any
+  ): Promise<FollowedAndSubscribedListResponseDto[]> {
+    return await this.userService.getFollowingAndSubscribingList(req.user.userId);
   }
 }

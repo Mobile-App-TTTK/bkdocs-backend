@@ -1,10 +1,10 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Document } from './entities/document.entity';
 import { Subject } from './entities/subject.entity';
-import { Faculty } from './entities/falcuty.entity';
+import { Faculty } from './entities/faculty.entity';
 import { User } from '@modules/users/entities/user.entity';
 import { Rating } from '@modules/ratings/entities/rating.entity';
 import { Image } from '@modules/documents/entities/image.entity';
@@ -18,7 +18,7 @@ import { DocumentType } from '@modules/documents/entities/document-type.entity';
   controllers: [DocumentsController],
   providers: [DocumentsService, ConfigService],
   imports: [
-    UsersModule,
+    forwardRef(() => UsersModule),
     S3Module,
     TypeOrmModule.forFeature([
       Document,
@@ -32,5 +32,6 @@ import { DocumentType } from '@modules/documents/entities/document-type.entity';
     ]),
     NotificationsModule,
   ],
+  exports: [DocumentsService],
 })
 export class DocumentsModule {}

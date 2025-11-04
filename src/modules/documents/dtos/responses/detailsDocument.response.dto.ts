@@ -26,10 +26,10 @@ export class DetailsDocumentResponseDto {
   description: string;
 
   @ApiProperty({ example: 'Giao_trinh_GT1.pdf' })
-  fileKey: string;
+  fileUrl: string | null;
 
   @ApiProperty({ example: null, nullable: true })
-  thumbnailKey: string;
+  thumbnailUrl: string | null;
 
   @ApiProperty({ example: 0 })
   downloadCount: number;
@@ -40,14 +40,19 @@ export class DetailsDocumentResponseDto {
   @ApiProperty({ example: '2025-10-11T19:10:28.735Z' })
   uploadDate: Date;
 
-  @ApiProperty({ example: null, nullable: true })
-  uploader: string | null;
+  @ApiProperty({ example: { name: 'John Doe', id: '123', isVerified: true }, nullable: true })
+  uploader: {
+    name: string;
+    id: string;
+    isVerified: boolean;
+    createdAt: Date;
+  } | null;
 
   @ApiProperty({ example: null, nullable: true })
   subject: string | null;
 
   @ApiProperty({ example: null, nullable: true })
-  faculties: string | null;
+  faculties: string[] | null;
 
   @ApiProperty({ type: () => [String], example: [] })
   images: string[];

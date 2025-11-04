@@ -15,7 +15,7 @@ import { UserRole } from '@common/enums/user-role.enum';
 import { Notification } from '@modules/notifications/entities/notification.entity';
 import { Document } from '@modules/documents/entities/document.entity';
 import { Subject } from '@modules/documents/entities/subject.entity';
-import { Faculty } from '@modules/documents/entities/falcuty.entity';
+import { Faculty } from '@modules/documents/entities/faculty.entity';
 import { Rating } from '@modules/ratings/entities/rating.entity';
 import { Comment } from '@modules/comments/entities/comment.entity';
 import { PasswordReset } from '@modules/auth/entities/password_resets.entity';
@@ -67,14 +67,19 @@ export class User {
   subscribedSubjects: Subject[];
 
   @ManyToMany(() => User, (user) => user.followers)
-  @JoinTable({ name: 'user_followers' })
-  followers: User[];
-
-  @ManyToMany(() => User, (user) => user.following)
+  @JoinTable({
+    name: 'user_followers',
+    joinColumn: { name: 'follower_id' }, // người theo dõi
+    inverseJoinColumn: { name: 'following_id' }, // người bị theo dõi
+  })
   following: User[];
 
+  /** những ai đang theo dõi user này */
+  @ManyToMany(() => User, (user) => user.following)
+  followers: User[];
+
   @ManyToMany(() => Faculty, (faculty) => faculty.subscribers)
-  @JoinTable({ name: 'facuty_subscriptions' })
+  @JoinTable({ name: 'faculty_subscriptions' })
   subscribedFaculties: Faculty[];
 
   @OneToMany(() => Rating, (rating) => rating.user)
