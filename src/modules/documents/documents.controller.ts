@@ -57,7 +57,7 @@ export class DocumentsController {
 
   @Get('search')
   @ApiOkResponse({ description: 'Search documents by keyword', type: [Object] })
-  async search(@Query() q: SearchDocumentsDto): Promise<any[]> {
+  async search(@Query() q: SearchDocumentsDto, @Req() req): Promise<any[]> {
     const empty =
       (!q.keyword || q.keyword.trim() === '') &&
       (!q.faculty || q.faculty.trim() === '') &&
@@ -69,7 +69,7 @@ export class DocumentsController {
       );
     }
 
-    return this.documentsService.search(q);
+    return this.documentsService.search(q, (req as any).user.userId);
   }
 
   @Get('suggest/keyword')
@@ -235,16 +235,16 @@ export class DocumentsController {
   @ApiOperation({ summary: 'Lấy tài liệu theo khoa (name, count, documents)' })
   @ApiParam({ name: 'id', required: true, description: 'Faculty ID' })
   @ApiOkResponse({ description: 'Faculty documents', type: Object })
-  async getDocumentsByFaculty(@Param('id') id: string) {
-    return this.documentsService.getDocumentsByFaculty(id);
+  async getDocumentsByFaculty(@Param('id') id: string, @Req() req) {
+    return this.documentsService.getDocumentsByFaculty(id, (req as any).user.userId);
   }
 
   @Get('subject/:id')
   @ApiOperation({ summary: 'Lấy tài liệu theo môn học (name, count, documents)' })
   @ApiParam({ name: 'id', required: true, description: 'Subject ID' })
   @ApiOkResponse({ description: 'Subject documents', type: Object })
-  async getDocumentsBySubject(@Param('id') id: string) {
-    return this.documentsService.getDocumentsBySubject(id);
+  async getDocumentsBySubject(@Param('id') id: string, @Req() req) {
+    return this.documentsService.getDocumentsBySubject(id, (req as any).user.userId);
   }
 
   @Get(':id')

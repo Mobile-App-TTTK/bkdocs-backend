@@ -55,9 +55,24 @@ type SubjectGroup = {
 
 type FacultyDocumentsResponse = {
   name: string;
+  imageUrl: string | null;
+  isFollowingFaculty: boolean;
   document_count: number;
+  followers_count: number
   subjects: SubjectGroup[];
 };
+
+type SubjectDocumentsResponse = {
+  name: string; 
+  isFollowingSubject: boolean;  
+  document_count: number; 
+  followers_count: number; 
+  imageUrl: string | null; 
+  types: Array<{
+    name: string | null; 
+    documents: SlimDoc[];
+  }>;
+}
 
 @Injectable()
 export class DocumentsService {
@@ -83,7 +98,7 @@ export class DocumentsService {
     private readonly notificationsService: NotificationsService
   ) {}
 
-  async search(q: SearchDocumentsDto): Promise<any> {
+  async search(q: SearchDocumentsDto, currentUserId?: string): Promise<any> {
     const faculty = q.faculty?.trim();
     const subject = q.subject?.trim();
     const keyword = q.keyword?.trim();
@@ -121,22 +136,76 @@ export class DocumentsService {
       return rows.map((r) => ({ name: r.name, count: Number(r.count) || 0 }));
     }
 
-    if (q.searchFor === 'user' && keyword) {
+    if (searchFor === 'user' && keyword) {
       const kw = `%${keyword}%`;
-      const userRows = await this.userRepo
+
+      const baseUsers = await this.userRepo
         .createQueryBuilder('u')
         .where('u.name ILIKE :kw', { kw })
         .orWhere('u.email ILIKE :kw', { kw })
-        .select('u.name', 'name')
-        .getRawMany<{ name: string }>();
+        .select(['u.id AS id', 'u.name AS name'])
+        .orderBy('u.name', 'ASC')
+        .getRawMany<{ id: string; name: string }>();
 
-      return userRows.map((u) => u.name);
+      if (baseUsers.length === 0) return [];
+
+      const ids = baseUsers.map(u => u.id);
+
+      const followerRows = await this.userRepo
+        .createQueryBuilder('u')
+        .leftJoin('u.followers', 'f')
+        .where('u.id IN (:...ids)', { ids })
+        .select('u.id', 'id')
+        .addSelect('COUNT(f.id)', 'followersCount')
+        .groupBy('u.id')
+        .getRawMany<{ id: string; followersCount: string }>();
+
+      const followersCountMap = new Map<string, number>(
+        followerRows.map(r => [r.id, Number(r.followersCount) || 0])
+      );
+
+      const docRows = await this.documentRepo
+        .createQueryBuilder('d')
+        .leftJoin('d.uploader', 'uploader')
+        .where('uploader.id IN (:...ids)', { ids })
+        .select('uploader.id', 'id')
+        .addSelect('COUNT(d.id)', 'documentsCount')
+        .groupBy('uploader.id')
+        .getRawMany<{ id: string; documentsCount: string }>();
+
+      const documentsCountMap = new Map<string, number>(
+        docRows.map(r => [r.id, Number(r.documentsCount) || 0])
+      );
+
+      let isFollowingSet = new Set<string>();
+      if (currentUserId) {
+        const followedRows = await this.userRepo
+          .createQueryBuilder('u')
+          .leftJoin('u.followers', 'me', 'me.id = :me', { me: currentUserId })
+          .where('u.id IN (:...ids)', { ids })
+          .select('u.id', 'id')
+          .addSelect('COUNT(me.id)', 'meCount')
+          .groupBy('u.id')
+          .getRawMany<{ id: string; meCount: string }>();
+
+        isFollowingSet = new Set(
+          followedRows.filter(r => Number(r.meCount) > 0).map(r => r.id)
+        );
+      }
+
+      return baseUsers.map(u => ({
+        id: u.id,
+        name: u.name,
+        followersCount: followersCountMap.get(u.id) ?? 0,
+        documentsCount: documentsCountMap.get(u.id) ?? 0,
+        isFollowing: currentUserId ? isFollowingSet.has(u.id) : false,
+      }));
     }
 
     const qb = this.documentRepo
       .createQueryBuilder('d')
       .leftJoin('d.subject', 'subject')
-      .leftJoin('d.faculty', 'faculty')
+      .leftJoin('d.faculties', 'faculty')
       .leftJoin('d.ratings', 'rating')
       .select([
         'd.id AS d_id',
@@ -163,9 +232,6 @@ export class DocumentsService {
       qb.andWhere(
         new Brackets((b) => {
           b.where('d.title ILIKE :kw')
-            .orWhere('d.description ILIKE :kw')
-            .orWhere('d.thumbnailKey ILIKE :kw')
-            .orWhere('d.fileKey ILIKE :kw');
         }),
         { kw: `%${keyword}%` }
       );
@@ -336,22 +402,26 @@ export class DocumentsService {
     const kw = keyword.trim();
     if (kw.length < 1) return [];
 
-    const [docs, subs, facs] = await Promise.all([
+    const [docs, subs, facs, users] = await Promise.all([
       this.documentRepo.find({
         select: ['id', 'title'],
         where: { title: ILike(`%${kw}%`) },
         take: 5,
         order: { title: 'ASC' },
       }),
-
       this.subjectRepo.find({
         select: ['id', 'name'],
         where: { name: ILike(`%${kw}%`) },
         take: 5,
         order: { name: 'ASC' },
       }),
-
       this.facultyRepo.find({
+        select: ['id', 'name'],
+        where: { name: ILike(`%${kw}%`) },
+        take: 5,
+        order: { name: 'ASC' },
+      }),
+      this.userRepo.find({
         select: ['id', 'name'],
         where: { name: ILike(`%${kw}%`) },
         take: 5,
@@ -361,13 +431,14 @@ export class DocumentsService {
 
     type Hit = { name: string };
     const hits: Hit[] = [
-      ...docs.map((d) => ({ name: d.title })),
-      ...subs.map((s) => ({ name: s.name })),
-      ...facs.map((f) => ({ name: f.name })),
+      ...docs.map(d => ({ name: d.title })),
+      ...subs.map(s => ({ name: s.name })),
+      ...facs.map(f => ({ name: f.name })),
+      ...users.map(u => ({ name: u.name })),
     ];
 
     const score = (name: string) => {
-      const n = name.toLowerCase();
+      const n = (name || '').toLowerCase();
       const k = kw.toLowerCase();
       const pos = n.indexOf(k);
       const posScore = pos === -1 ? 999 : pos;
@@ -448,16 +519,46 @@ export class DocumentsService {
     });
   }
 
-  async getDocumentsByFaculty(facultyId: string): Promise<FacultyDocumentsResponse> {
+  async getDocumentsByFaculty(facultyId: string, currentUserId?: string) : Promise<FacultyDocumentsResponse> {
     const faculty = await this.facultyRepo.findOne({ where: { id: facultyId } });
     if (!faculty) {
       throw new NotFoundException(`Faculty with ID "${facultyId}" not found`);
     }
 
+    let facultyImageUrl: string | null = null;
+    if (faculty.imageKey) {
+      facultyImageUrl = await this.s3Service.getPresignedDownloadUrl(
+        faculty.imageKey,
+        faculty.name || 'faculty-image',
+        false
+      );
+    }
+
+    let isFollowingFaculty = false;
+    if (currentUserId) {
+      const meFollow = await this.userRepo
+        .createQueryBuilder('u')
+        .leftJoin('u.subscribedFaculties', 'f')
+        .where('u.id = :uid', { uid: currentUserId })
+        .andWhere('f.id = :fid', { fid: facultyId })
+        .select('f.id', 'fid')
+        .getRawOne<{ fid: string }>();
+      isFollowingFaculty = Boolean(meFollow?.fid);
+    }
+
+    const followersRow = await this.userRepo
+      .createQueryBuilder('u')
+      .leftJoin('u.subscribedFaculties', 'f')
+      .where('f.id = :fid', { fid: facultyId })
+      .select('COUNT(u.id)', 'cnt')
+      .getRawOne<{ cnt: string }>();
+
+    const followersCount = Number(followersRow?.cnt ?? 0);
+
     const qb = this.documentRepo
       .createQueryBuilder('d')
       .leftJoin('d.subject', 'subject')
-      .leftJoin('d.faculty', 'faculty')
+      .leftJoin('d.faculties', 'faculty')
       .leftJoin('d.ratings', 'rating')
       .where('faculty.id = :fid', { fid: facultyId })
       .select([
@@ -468,6 +569,7 @@ export class DocumentsService {
         'd.download_count AS d_download_count',
         'd.upload_date AS d_upload_date',
         'd.thumbnail_key AS d_thumbnail_key',
+        'subject.id AS subject_id',       
         'subject.name AS subject_name',
         'faculty.name AS faculty_name',
         'AVG(rating.score) AS rating_score',
@@ -480,10 +582,23 @@ export class DocumentsService {
       .addGroupBy('d.upload_date')
       .addGroupBy('d.thumbnail_key')
       .addGroupBy('d.file_key')
+      .addGroupBy('subject.id')           
       .addGroupBy('subject.name')
       .addGroupBy('faculty.name');
 
-    const rows = await qb.getRawMany<any>();
+    const rows = await qb.getRawMany<{
+      d_id: string;
+      d_title: string;
+      d_description: string | null;
+      d_file_key: string | null;
+      d_download_count: number;
+      d_upload_date: Date;
+      d_thumbnail_key: string | null;
+      subject_id: string | null;
+      subject_name: string | null;
+      faculty_name: string | null;
+      rating_score: string | number | null;
+    }>();
 
     const docs: SlimDoc[] = await Promise.all(
       rows.map(async (r) => {
@@ -509,26 +624,46 @@ export class DocumentsService {
           title: r.d_title,
           downloadCount: Number(r.d_download_count) || 0,
           uploadDate: r.d_upload_date,
-          subject: r.subject_name ? { name: r.subject_name } : null,
-          // remove faculty from each document in this faculty-scoped response
+          subject: r.subject_name ? { name: r.subject_name, id: r.subject_id as any } : null as any,
           faculty: null,
           thumbnail: downloadUrl,
           score: r.rating_score != null ? Number(r.rating_score) : null,
           type: fileType,
-        } as SlimDoc;
+        } as any as SlimDoc;
       })
     );
 
-    const map: Record<string, { subjectName: string | null; docs: SlimDoc[] }> = {};
+    type Group = { subjectId: string | null; subjectName: string | null; docs: SlimDoc[] };
+    const map: Record<string, Group> = {};
+
     for (const d of docs) {
+      const sid = (d as any).subject?.id ?? null;
       const sname = d.subject?.name ?? null;
-      const key = sname || '__no_subject__';
-      if (!map[key]) map[key] = { subjectName: sname, docs: [] };
+      const key = sid ?? '__no_subject__';
+      if (!map[key]) map[key] = { subjectId: sid, subjectName: sname, docs: [] };
       map[key].docs.push(d);
+    }
+
+    const subjectIds = Object.values(map)
+      .map(g => g.subjectId)
+      .filter((x): x is string => typeof x === 'string');
+
+    let followingSet = new Set<string>();
+    if (currentUserId && subjectIds.length > 0) {
+      const followedRows = await this.userRepo
+        .createQueryBuilder('u')
+        .leftJoin('u.subscribedSubjects', 's')
+        .where('u.id = :uid', { uid: currentUserId })
+        .andWhere('s.id IN (:...ids)', { ids: subjectIds })
+        .select('s.id', 'id')
+        .getRawMany<{ id: string }>();
+
+      followingSet = new Set(followedRows.map(r => r.id));
     }
 
     const subjects = Object.values(map).map((g) => ({
       name: g.subjectName,
+      isFollowing: g.subjectId ? followingSet.has(g.subjectId) : false,
       documents: g.docs.map((d) => ({
         id: d.id,
         title: d.title,
@@ -542,24 +677,55 @@ export class DocumentsService {
 
     return {
       name: faculty.name,
+      imageUrl: facultyImageUrl,
       document_count: docs.length,
+      followers_count: followersCount,
+      isFollowingFaculty,      
       subjects,
     };
   }
 
-  async getDocumentsBySubject(
-    subjectId: string
-  ): Promise<{ name: string; document_count: number; documents: SlimDoc[] }> {
+  async getDocumentsBySubject(subjectId: string, currentUserId?: string) : Promise<SubjectDocumentsResponse> {
     const subjectEntity = await this.subjectRepo.findOne({ where: { id: subjectId } });
     if (!subjectEntity) {
       throw new NotFoundException(`Subject with ID "${subjectId}" not found`);
     }
 
+    let imageUrl: string | null = null;
+    if (subjectEntity.imageKey) {
+      imageUrl = await this.s3Service.getPresignedDownloadUrl(
+        subjectEntity.imageKey,
+        subjectEntity.name || 'subject-image',
+        true
+      );
+    }
+
+    let isFollowingSubject = false;
+    if (currentUserId) {
+      const meFollow = await this.userRepo
+        .createQueryBuilder('u')
+        .leftJoin('u.subscribedSubjects', 's')
+        .where('u.id = :uid', { uid: currentUserId })
+        .andWhere('s.id = :sid', { sid: subjectId })
+        .select('s.id', 'sid')
+        .getRawOne<{ sid: string }>();
+      isFollowingSubject = Boolean(meFollow?.sid);
+    }
+
+    const followerRow = await this.userRepo
+      .createQueryBuilder('u')
+      .leftJoin('u.subscribedSubjects', 's')
+      .where('s.id = :sid', { sid: subjectId })
+      .select('COUNT(u.id)', 'cnt')
+      .getRawOne<{ cnt: string }>();
+    const followersCount = Number(followerRow?.cnt ?? 0);
+
     const qb = this.documentRepo
       .createQueryBuilder('d')
       .leftJoin('d.subject', 'subject')
-      .leftJoin('d.faculty', 'faculty')
+      .leftJoin('d.faculties', 'faculty')
       .leftJoin('d.ratings', 'rating')
+      .leftJoin('d.documentType', 'dt')
       .where('subject.id = :sid', { sid: subjectId })
       .select([
         'd.id AS d_id',
@@ -571,6 +737,7 @@ export class DocumentsService {
         'd.thumbnail_key AS d_thumbnail_key',
         'subject.name AS subject_name',
         'faculty.name AS faculty_name',
+        'dt.name AS type_name',          
         'AVG(rating.score) AS rating_score',
       ]);
 
@@ -582,11 +749,24 @@ export class DocumentsService {
       .addGroupBy('d.thumbnail_key')
       .addGroupBy('d.file_key')
       .addGroupBy('subject.name')
-      .addGroupBy('faculty.name');
+      .addGroupBy('faculty.name')
+      .addGroupBy('dt.name');            
 
-    const rows = await qb.getRawMany<any>();
+    const rows = await qb.getRawMany<{
+      d_id: string;
+      d_title: string;
+      d_description: string | null;
+      d_file_key: string | null;
+      d_download_count: number;
+      d_upload_date: Date;
+      d_thumbnail_key: string | null;
+      subject_name: string | null;
+      faculty_name: string | null;
+      type_name: string | null;         
+      rating_score: string | number | null;
+    }>();
 
-    const docs: SlimDoc[] = await Promise.all(
+    const docs: (SlimDoc & { __typeName?: string | null })[] = await Promise.all(
       rows.map(async (r) => {
         let downloadUrl: string | null = null;
         if (r.d_thumbnail_key) {
@@ -601,9 +781,8 @@ export class DocumentsService {
           }
         }
 
-        const fileType = r.d_file_key
-          ? (r.d_file_key.split('.').pop() || '').toLowerCase() || null
-          : null;
+        const fileType =
+          r.d_file_key ? (r.d_file_key.split('.').pop() || '').toLowerCase() || null : null;
 
         return {
           id: r.d_id,
@@ -614,21 +793,35 @@ export class DocumentsService {
           faculty: r.faculty_name ? { name: r.faculty_name } : null,
           thumbnail: downloadUrl,
           score: r.rating_score != null ? Number(r.rating_score) : null,
-          type: fileType,
-        } as SlimDoc;
+          type: fileType,               
+          __typeName: r.type_name ?? null, 
+        } as SlimDoc & { __typeName?: string | null };
       })
     );
+
+    const typeMap: Record<string, { name: string | null; documents: SlimDoc[] }> = {};
+    for (const d of docs) {
+      const key = (d.__typeName ?? '__no_type__').toString();
+      if (!typeMap[key]) typeMap[key] = { name: d.__typeName ?? null, documents: [] };
+      const { __typeName, ...rest } = d as any;
+      typeMap[key].documents.push(rest as SlimDoc);
+    }
+
+    const types = Object.values(typeMap);
 
     return {
       name: subjectEntity.name,
       document_count: docs.length,
-      documents: docs,
+      followers_count: followersCount,
+      imageUrl,
+      isFollowingSubject, 
+      types,
     };
   }
 
   async suggestSubjectsForUser(userID: string): Promise<any[]> {
     const user = await this.usersService.findByIdWithFaculty(userID);
-    const year = (user as any)?.yearOfStudy ?? (user as any)?.year_of_study;
+    const year = (user as any)?.intakeYear;
 
     if (!user || !year || !user.faculty?.id) {
       this.logger.warn(
@@ -661,7 +854,7 @@ export class DocumentsService {
 
     const maps = await this.fysRepo.find({
       where: {
-        faculty: { id: user.faculty.id },
+        faculty: { id: user?.faculty.id },
         year: Number(year),
       },
       relations: ['subject'],

@@ -6,12 +6,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import * as bcrypt from 'bcrypt';
 import { GetUserProfileResponseDto } from './dtos/responses/getUserProfile.response.dto';
 import { UpdateUserProfileDto } from './dtos/requests/updateUserProfile.dto';
 import { S3Service } from '@modules/s3/s3.service';
+import { FollowResponseDto } from './dtos/responses/follow.response.dto';
 import { Faculty } from '@modules/documents/entities/faculty.entity';
 import { DocumentsService } from '@modules/documents/documents.service';
 import { FollowedAndSubscribedListResponseDto } from './dtos/responses/followedAndSubscribedList.response.dto';
@@ -23,8 +24,8 @@ export class UsersService {
     private readonly usersRepo: Repository<User>,
     @InjectRepository(Faculty)
     private readonly facultyRepo: Repository<Faculty>,
-
-    private readonly s3Service: S3Service
+    private readonly s3Service: S3Service,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(name: string, email: string, password: string): Promise<User> {
@@ -123,6 +124,61 @@ export class UsersService {
     });
   }
 
+  private async ensureUserExists(userId: string) {
+    const exists = await this.usersRepo.exist({ where: { id: userId } });
+    if (!exists) throw new NotFoundException(`User ${userId} not found`);
+  }
+
+  async FollowUser(currentUserId: string, targetUserId: string): Promise<FollowResponseDto> {
+    if (!currentUserId) throw new BadRequestException('Missing current user');
+    if (currentUserId === targetUserId) {
+      throw new BadRequestException('Không thể theo dõi chính mình');
+    }
+    await this.ensureUserExists(targetUserId);
+
+    const delRes = await this.dataSource.query(
+      `DELETE FROM user_followers
+      WHERE usersId_1 = $1 AND usersId_2 = $2
+      RETURNING 1 AS removed`,
+      [targetUserId, currentUserId],
+    );
+
+    let action: 'followed' | 'unfollowed' | 'noop';
+    if (Array.isArray(delRes) && delRes.length > 0) {
+      action = 'unfollowed';
+    } else {
+      const insRes = await this.dataSource.query(
+        `INSERT INTO user_followers (usersId_1, usersId_1)
+        VALUES ($1, $2)
+        ON CONFLICT (usersId_1, usersId_2) DO NOTHING
+        RETURNING 1 AS inserted`,
+        [targetUserId, currentUserId],
+      );
+      action = (Array.isArray(insRes) && insRes.length > 0) ? 'followed' : 'noop';
+    }
+
+    const [existsRow] = await this.dataSource.query(
+      `SELECT EXISTS(
+        SELECT 1 FROM user_followers
+        WHERE usersId_1 = $1 AND usersId_1 = $2
+      ) AS "isFollowing"`,
+      [targetUserId, currentUserId],
+    );
+
+    const [countRow] = await this.dataSource.query(
+      `SELECT COUNT(*)::int AS "followersCount"
+      FROM user_followers
+      WHERE usersId_1 = $1`,
+      [targetUserId],
+    );
+
+    return new FollowResponseDto({
+      action,
+      isFollowing: Boolean(existsRow?.isFollowing),
+      followersCount: Number(countRow?.followersCount ?? 0),
+    });
+  }
+  
   async toggleFollowUser(followerId: string, userIdToFollow: string): Promise<void> {
     if (followerId === userIdToFollow) {
       throw new BadRequestException('You cannot follow yourself');

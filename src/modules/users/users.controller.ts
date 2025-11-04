@@ -33,6 +33,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { GetUserProfileResponseDto } from './dtos/responses/getUserProfile.response.dto';
 import { UpdateUserProfileDto } from './dtos/requests/updateUserProfile.dto';
 import { ApiResponseSwaggerWrapper } from '@common/decorators/api-response-swagger-wapper.decorator';
+import { FollowResponseDto } from './dtos/responses/follow.response.dto';
 import { DocumentResponseDto } from '@modules/documents/dtos/responses/document.response.dto';
 import { DocumentsService } from '@modules/documents/documents.service';
 import { FollowedAndSubscribedListResponseDto } from './dtos/responses/followedAndSubscribedList.response.dto';
@@ -95,6 +96,13 @@ export class UsersController {
     return this.userService.updateProfile(req.user.userId, dto, avatar);
   }
 
+  @Post(':id/follow')
+  @ApiOperation({ summary: 'Follow User' })
+  async toggleFollow(@Param('id') targetUserId: string, @Req() req: any): Promise<FollowResponseDto> {
+    const me = req.user?.userId;
+    return this.userService.FollowUser(me, targetUserId);
+  }
+  
   @Get(':userId/profile')
   @ApiResponseSwaggerWrapper(GetUserProfileResponseDto)
   @ApiOperation({ summary: 'Lấy thông tin người dùng (kèm URL avatar từ S3)' })
