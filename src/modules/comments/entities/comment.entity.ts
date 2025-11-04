@@ -5,11 +5,13 @@ import {
   ManyToOne,
   CreateDateColumn,
   JoinColumn,
+  Unique,
 } from 'typeorm';
 import { User } from '@modules/users/entities/user.entity';
 import { Document } from '@modules/documents/entities/document.entity';
 
 @Entity('comments')
+@Unique(['user', 'document']) 
 export class Comment {
   @PrimaryGeneratedColumn('uuid')
   id: string;

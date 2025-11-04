@@ -85,6 +85,7 @@ export class DocumentsController {
   @Get('suggest/subject')
   @ApiOkResponse({ type: [Subject] })
   async suggestSubject(@Req() req): Promise<Subject[]> {
+    console.log(req.user.userId)
     return this.documentsService.suggestSubjectsForUser((req as any).user.userId);
   }
 
