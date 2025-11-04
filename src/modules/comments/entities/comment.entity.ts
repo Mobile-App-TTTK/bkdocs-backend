@@ -22,6 +22,12 @@ export class Comment {
   @Column({ name: 'created_at', default: () => 'now()' })
   createdAt: Date;
 
+  @Column({ name: 'image_key', type: 'text', nullable: true })
+  imageKey: string | null;
+
+  @Column({ name: 'image_url', type: 'text', nullable: true })
+  imageUrl: string | null;
+
   /** Người bình luận */
   @ManyToOne(() => User, (user) => user.comments, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
