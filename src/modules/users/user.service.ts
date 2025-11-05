@@ -25,7 +25,7 @@ export class UsersService {
     @InjectRepository(Faculty)
     private readonly facultyRepo: Repository<Faculty>,
     private readonly s3Service: S3Service,
-    private readonly dataSource: DataSource,
+    private readonly dataSource: DataSource
   ) {}
 
   async create(name: string, email: string, password: string): Promise<User> {
@@ -78,7 +78,6 @@ export class UsersService {
       ? await this.s3Service.getPresignedDownloadUrl(user.imageKey)
       : undefined;
 
-    // tính số lượng tài liệu đã upload bởi user này
     return new GetUserProfileResponseDto({
       id: user.id,
       email: user.email,
@@ -91,7 +90,6 @@ export class UsersService {
       participationDays: user.createdAt
         ? Math.floor((Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24))
         : 0,
-      role: user.role,
     });
   }
 
@@ -151,7 +149,7 @@ export class UsersService {
       `DELETE FROM user_followers
       WHERE usersId_1 = $1 AND usersId_2 = $2
       RETURNING 1 AS removed`,
-      [targetUserId, currentUserId],
+      [targetUserId, currentUserId]
     );
 
     let action: 'followed' | 'unfollowed' | 'noop';
@@ -163,9 +161,9 @@ export class UsersService {
         VALUES ($1, $2)
         ON CONFLICT (usersId_1, usersId_2) DO NOTHING
         RETURNING 1 AS inserted`,
-        [targetUserId, currentUserId],
+        [targetUserId, currentUserId]
       );
-      action = (Array.isArray(insRes) && insRes.length > 0) ? 'followed' : 'noop';
+      action = Array.isArray(insRes) && insRes.length > 0 ? 'followed' : 'noop';
     }
 
     const [existsRow] = await this.dataSource.query(
@@ -173,14 +171,14 @@ export class UsersService {
         SELECT 1 FROM user_followers
         WHERE usersId_1 = $1 AND usersId_1 = $2
       ) AS "isFollowing"`,
-      [targetUserId, currentUserId],
+      [targetUserId, currentUserId]
     );
 
     const [countRow] = await this.dataSource.query(
       `SELECT COUNT(*)::int AS "followersCount"
       FROM user_followers
       WHERE usersId_1 = $1`,
-      [targetUserId],
+      [targetUserId]
     );
 
     return new FollowResponseDto({
@@ -189,7 +187,7 @@ export class UsersService {
       followersCount: Number(countRow?.followersCount ?? 0),
     });
   }
-  
+
   async toggleFollowUser(followerId: string, userIdToFollow: string): Promise<void> {
     if (followerId === userIdToFollow) {
       throw new BadRequestException('You cannot follow yourself');
