@@ -262,25 +262,4 @@ export class DocumentsController {
     const document = await this.documentsService.getDocumentById(id);
     return document;
   }
-
-  @Post('subject')
-  @ApiOperation({ summary: 'Tạo môn học mới' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        image: { type: 'string', format: 'binary' },
-        name: { type: 'string', example: 'Giải Tích 1' },
-        description: { type: 'string', example: 'Môn học về Giải Tích 1' },
-      },
-    },
-  })
-  @ApiOkResponse({ description: 'Created subject', type: Subject })
-  async createSubject(
-    @UploadedFile() image: Express.Multer.File,
-    @Body('name') name: string,
-    @Body('description') description: string
-  ): Promise<Subject> {
-    return this.documentsService.createSubject(name, description, image);
-  }
 }

@@ -16,6 +16,7 @@ import { FollowResponseDto } from './dtos/responses/follow.response.dto';
 import { Faculty } from '@modules/documents/entities/faculty.entity';
 import { DocumentsService } from '@modules/documents/documents.service';
 import { FollowedAndSubscribedListResponseDto } from './dtos/responses/followedAndSubscribedList.response.dto';
+import { UserRole } from '@common/enums/user-role.enum';
 
 @Injectable()
 export class UsersService {
@@ -263,5 +264,23 @@ export class UsersService {
         })),
       }),
     ];
+  }
+
+  async upgradeUserRole(userId: string, newRole: UserRole): Promise<User> {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    user.role = newRole;
+    await this.usersRepo.save(user);
+    return user;
+  }
+
+  async toggleVerifyUser(userId: string): Promise<User> {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    user.isVerified = !user.isVerified;
+    await this.usersRepo.save(user);
+    return user;
   }
 }

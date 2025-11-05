@@ -6,12 +6,14 @@ import {
   CreateDateColumn,
   JoinColumn,
   Unique,
+  OneToMany,
 } from 'typeorm';
 import { User } from '@modules/users/entities/user.entity';
 import { Document } from '@modules/documents/entities/document.entity';
+import { Image } from '@modules/documents/entities/image.entity';
 
 @Entity('comments')
-@Unique(['user', 'document']) 
+@Unique(['user', 'document'])
 export class Comment {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -28,6 +30,8 @@ export class Comment {
   @Column({ name: 'image_url', type: 'text', nullable: true })
   imageUrl: string | null;
 
+  @OneToMany(() => Image, (image) => image.comment)
+  images: Image[];
   /** Người bình luận */
   @ManyToOne(() => User, (user) => user.comments, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
