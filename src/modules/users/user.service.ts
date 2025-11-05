@@ -140,50 +140,70 @@ export class UsersService {
 
   async FollowUser(currentUserId: string, targetUserId: string): Promise<FollowResponseDto> {
     if (!currentUserId) throw new BadRequestException('Missing current user');
-    if (currentUserId === targetUserId) {
+    if (currentUserId === targetUserId)
       throw new BadRequestException('Không thể theo dõi chính mình');
-    }
     await this.ensureUserExists(targetUserId);
 
-    const delRes = await this.dataSource.query(
-      `DELETE FROM user_followers
-      WHERE usersId_1 = $1 AND usersId_2 = $2
-      RETURNING 1 AS removed`,
+    const [existsRow] = await this.dataSource.query(
+      `
+      SELECT EXISTS(
+        SELECT 1
+        FROM user_followers
+        WHERE "following_id" = $1 AND "follower_id" = $2
+      ) AS "isFollowing"
+      `,
       [targetUserId, currentUserId]
     );
+    const isFollowingNow = Boolean(existsRow?.isFollowing);
 
     let action: 'followed' | 'unfollowed' | 'noop';
-    if (Array.isArray(delRes) && delRes.length > 0) {
-      action = 'unfollowed';
+
+    if (isFollowingNow) {
+      const delRes = await this.dataSource.query(
+        `
+        DELETE FROM user_followers
+        WHERE "following_id" = $1 AND "follower_id" = $2
+        RETURNING 1 AS removed
+        `,
+        [targetUserId, currentUserId]
+      );
+      action = Array.isArray(delRes) && delRes.length > 0 ? 'unfollowed' : 'noop';
     } else {
       const insRes = await this.dataSource.query(
-        `INSERT INTO user_followers (usersId_1, usersId_1)
-        VALUES ($1, $2)
-        ON CONFLICT (usersId_1, usersId_2) DO NOTHING
-        RETURNING 1 AS inserted`,
+        `
+        INSERT INTO user_followers ("following_id","follower_id")
+        VALUES ($1,$2)
+        ON CONFLICT ("following_id","follower_id") DO NOTHING
+        RETURNING 1 AS inserted
+        `,
         [targetUserId, currentUserId]
       );
       action = Array.isArray(insRes) && insRes.length > 0 ? 'followed' : 'noop';
     }
 
-    const [existsRow] = await this.dataSource.query(
-      `SELECT EXISTS(
-        SELECT 1 FROM user_followers
-        WHERE usersId_1 = $1 AND usersId_1 = $2
-      ) AS "isFollowing"`,
+    const [existsRow2] = await this.dataSource.query(
+      `
+      SELECT EXISTS(
+        SELECT 1
+        FROM user_followers
+        WHERE "following_id" = $1 AND "follower_id" = $2
+      ) AS "isFollowing"
+      `,
       [targetUserId, currentUserId]
     );
 
     const [countRow] = await this.dataSource.query(
-      `SELECT COUNT(*)::int AS "followersCount"
+      `
+      SELECT COUNT(*)::int AS "followersCount"
       FROM user_followers
-      WHERE usersId_1 = $1`,
+      WHERE "following_id" = $1
+      `,
       [targetUserId]
     );
 
     return new FollowResponseDto({
       action,
-      isFollowing: Boolean(existsRow?.isFollowing),
+      isFollowing: Boolean(existsRow2?.isFollowing),
       followersCount: Number(countRow?.followersCount ?? 0),
     });
   }
