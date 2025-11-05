@@ -14,6 +14,7 @@ import { UsersModule } from '@modules/users/user.module';
 import { FacultyYearSubject } from './entities/faculty-year-subject.entity';
 import { NotificationsModule } from '@modules/notifications/notifications.module';
 import { DocumentType } from '@modules/documents/entities/document-type.entity';
+import { Comment } from '@modules/comments/entities/comment.entity';
 @Module({
   controllers: [DocumentsController],
   providers: [DocumentsService, ConfigService],
@@ -29,6 +30,7 @@ import { DocumentType } from '@modules/documents/entities/document-type.entity';
       Rating,
       Image,
       FacultyYearSubject,
+      Comment,
     ]),
     NotificationsModule,
   ],

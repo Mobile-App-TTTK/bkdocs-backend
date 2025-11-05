@@ -16,6 +16,7 @@ import { FollowResponseDto } from './dtos/responses/follow.response.dto';
 import { Faculty } from '@modules/documents/entities/faculty.entity';
 import { DocumentsService } from '@modules/documents/documents.service';
 import { FollowedAndSubscribedListResponseDto } from './dtos/responses/followedAndSubscribedList.response.dto';
+import { UserRole } from '@common/enums/user-role.enum';
 
 @Injectable()
 export class UsersService {
@@ -25,7 +26,7 @@ export class UsersService {
     @InjectRepository(Faculty)
     private readonly facultyRepo: Repository<Faculty>,
     private readonly s3Service: S3Service,
-    private readonly dataSource: DataSource,
+    private readonly dataSource: DataSource
   ) {}
 
   async create(name: string, email: string, password: string): Promise<User> {
@@ -78,7 +79,6 @@ export class UsersService {
       ? await this.s3Service.getPresignedDownloadUrl(user.imageKey)
       : undefined;
 
-    // tính số lượng tài liệu đã upload bởi user này
     return new GetUserProfileResponseDto({
       id: user.id,
       email: user.email,
@@ -91,7 +91,6 @@ export class UsersService {
       participationDays: user.createdAt
         ? Math.floor((Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24))
         : 0,
-      role: user.role,
     });
   }
 
@@ -140,75 +139,76 @@ export class UsersService {
     if (!exists) throw new NotFoundException(`User ${userId} not found`);
   }
 
-  async FollowUser(currentUserId: string, targetUserId: string): Promise<FollowResponseDto> {
-    if (!currentUserId) throw new BadRequestException('Missing current user');
-    if (currentUserId === targetUserId) throw new BadRequestException('Không thể theo dõi chính mình');
-    await this.ensureUserExists(targetUserId);
+  // async FollowUser(currentUserId: string, targetUserId: string): Promise<FollowResponseDto> {
+  //   if (!currentUserId) throw new BadRequestException('Missing current user');
+  //   if (currentUserId === targetUserId)
+  //     throw new BadRequestException('Không thể theo dõi chính mình');
+  //   await this.ensureUserExists(targetUserId);
 
-    const [existsRow] = await this.dataSource.query(
-      `
-      SELECT EXISTS(
-        SELECT 1
-        FROM user_followers
-        WHERE "following_id" = $1 AND "follower_id" = $2
-      ) AS "isFollowing"
-      `,
-      [targetUserId, currentUserId],
-    );
-    const isFollowingNow = Boolean(existsRow?.isFollowing);
+  //   const [existsRow] = await this.dataSource.query(
+  //     `
+  //     SELECT EXISTS(
+  //       SELECT 1
+  //       FROM user_followers
+  //       WHERE "following_id" = $1 AND "follower_id" = $2
+  //     ) AS "isFollowing"
+  //     `,
+  //     [targetUserId, currentUserId]
+  //   );
+  //   const isFollowingNow = Boolean(existsRow?.isFollowing);
 
-    let action: 'followed' | 'unfollowed' | 'noop';
+  //   let action: 'followed' | 'unfollowed' | 'noop';
 
-    if (isFollowingNow) {
-      const delRes = await this.dataSource.query(
-        `
-        DELETE FROM user_followers
-        WHERE "following_id" = $1 AND "follower_id" = $2
-        RETURNING 1 AS removed
-        `,
-        [targetUserId, currentUserId],
-      );
-      action = (Array.isArray(delRes) && delRes.length > 0) ? 'unfollowed' : 'noop';
-    } else {
-      const insRes = await this.dataSource.query(
-        `
-        INSERT INTO user_followers ("following_id","follower_id")
-        VALUES ($1,$2)
-        ON CONFLICT ("following_id","follower_id") DO NOTHING
-        RETURNING 1 AS inserted
-        `,
-        [targetUserId, currentUserId],
-      );
-      action = (Array.isArray(insRes) && insRes.length > 0) ? 'followed' : 'noop';
-    }
+  //   if (isFollowingNow) {
+  //     const delRes = await this.dataSource.query(
+  //       `
+  //       DELETE FROM user_followers
+  //       WHERE "following_id" = $1 AND "follower_id" = $2
+  //       RETURNING 1 AS removed
+  //       `,
+  //       [targetUserId, currentUserId]
+  //     );
+  //     action = Array.isArray(delRes) && delRes.length > 0 ? 'unfollowed' : 'noop';
+  //   } else {
+  //     const insRes = await this.dataSource.query(
+  //       `
+  //       INSERT INTO user_followers ("following_id","follower_id")
+  //       VALUES ($1,$2)
+  //       ON CONFLICT ("following_id","follower_id") DO NOTHING
+  //       RETURNING 1 AS inserted
+  //       `,
+  //       [targetUserId, currentUserId]
+  //     );
+  //     action = Array.isArray(insRes) && insRes.length > 0 ? 'followed' : 'noop';
+  //   }
 
-    const [existsRow2] = await this.dataSource.query(
-      `
-      SELECT EXISTS(
-        SELECT 1
-        FROM user_followers
-        WHERE "following_id" = $1 AND "follower_id" = $2
-      ) AS "isFollowing"
-      `,
-      [targetUserId, currentUserId],
-    );
+  //   const [existsRow2] = await this.dataSource.query(
+  //     `
+  //     SELECT EXISTS(
+  //       SELECT 1
+  //       FROM user_followers
+  //       WHERE "following_id" = $1 AND "follower_id" = $2
+  //     ) AS "isFollowing"
+  //     `,
+  //     [targetUserId, currentUserId]
+  //   );
 
-    const [countRow] = await this.dataSource.query(
-      `
-      SELECT COUNT(*)::int AS "followersCount"
-      FROM user_followers
-      WHERE "following_id" = $1
-      `,
-      [targetUserId],
-    );
+  //   const [countRow] = await this.dataSource.query(
+  //     `
+  //     SELECT COUNT(*)::int AS "followersCount"
+  //     FROM user_followers
+  //     WHERE "following_id" = $1
+  //     `,
+  //     [targetUserId]
+  //   );
 
-    return new FollowResponseDto({
-      action,
-      isFollowing: Boolean(existsRow2?.isFollowing),
-      followersCount: Number(countRow?.followersCount ?? 0),
-    });
-  }
-  
+  //   return new FollowResponseDto({
+  //     action,
+  //     isFollowing: Boolean(existsRow2?.isFollowing),
+  //     followersCount: Number(countRow?.followersCount ?? 0),
+  //   });
+  // }
+
   async toggleFollowUser(followerId: string, userIdToFollow: string): Promise<void> {
     if (followerId === userIdToFollow) {
       throw new BadRequestException('You cannot follow yourself');
@@ -264,5 +264,23 @@ export class UsersService {
         })),
       }),
     ];
+  }
+
+  async upgradeUserRole(userId: string, newRole: UserRole): Promise<User> {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    user.role = newRole;
+    await this.usersRepo.save(user);
+    return user;
+  }
+
+  async toggleVerifyUser(userId: string): Promise<User> {
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    user.isVerified = !user.isVerified;
+    await this.usersRepo.save(user);
+    return user;
   }
 }

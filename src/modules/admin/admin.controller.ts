@@ -1,8 +1,25 @@
-import { Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UploadedFile,
+  UseGuards,
+} from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { ApiErrorResponseSwaggerWrapper } from '@common/decorators/api-error-response-swagger-wapper.decorator';
 import { DocumentResponseDto } from '@modules/documents/dtos/responses/document.response.dto';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOkResponse,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { DocumentsService } from '@modules/documents/documents.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { RolesGuard } from '@common/guards/role.guard';
@@ -12,6 +29,7 @@ import { Status } from '@common/enums/status.enum';
 import { User } from '@modules/users/entities/user.entity';
 import { UsersService } from '@modules/users/user.service';
 import { GetUserProfileResponseDto } from '@modules/users/dtos/responses/getUserProfile.response.dto';
+import { Subject } from '@modules/documents/entities/subject.entity';
 @ApiTags('admin')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -70,5 +88,40 @@ export class AdminController {
     @Query('fullTextSearch') fullTextSearch?: string
   ): Promise<{ data: DocumentResponseDto[]; total: number; page: number; totalPages: number }> {
     return this.documentsService.getPendingDocuments(page, limit, fullTextSearch);
+  }
+
+  @Post('subject')
+  @ApiOperation({ summary: 'Tạo môn học mới' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        image: { type: 'string', format: 'binary' },
+        name: { type: 'string', example: 'Giải Tích 1' },
+        description: { type: 'string', example: 'Môn học về Giải Tích 1' },
+      },
+    },
+  })
+  @ApiOkResponse({ description: 'Created subject', type: Subject })
+  async createSubject(
+    @UploadedFile() image: Express.Multer.File,
+    @Body('name') name: string,
+    @Body('description') description: string
+  ): Promise<Subject> {
+    return this.documentsService.createSubject(name, description, image);
+  }
+
+  @Post('user/:userId/upgrade-to-admin')
+  @ApiOperation({ summary: 'Nâng cấp người dùng thành admin' })
+  @ApiOkResponse({ description: 'User upgraded to admin', type: User })
+  async upgradeUserToAdmin(@Param('userId') userId: string): Promise<User> {
+    return this.userService.upgradeUserRole(userId, UserRole.ADMIN);
+  }
+
+  @Post('user/:userId/toggle-verify')
+  @ApiOperation({ summary: 'Cho người dùng tick xanh' })
+  @ApiOkResponse({ description: 'User verified', type: User })
+  async toggleVerifyUser(@Param('userId') userId: string): Promise<User> {
+    return this.userService.toggleVerifyUser(userId);
   }
 }

@@ -90,13 +90,13 @@ export class UsersController {
     return this.userService.updateProfile(req.user.userId, dto, avatar);
   }
 
-  @Post(':id/follow')
-  @ApiOperation({ summary: 'Follow User' })
-  async toggleFollow(@Param('id') targetUserId: string, @Req() req: any): Promise<FollowResponseDto> {
-    const me = req.user?.userId;
-    return this.userService.FollowUser(me, targetUserId);
-  }
-  
+  // @Post(':id/follow')
+  // @ApiOperation({ summary: 'Follow User' })
+  // async toggleFollow(@Param('id') targetUserId: string, @Req() req: any): Promise<FollowResponseDto> {
+  //   const me = req.user?.userId;
+  //   return this.userService.FollowUser(me, targetUserId);
+  // }
+
   @Get(':userId/profile')
   @ApiResponseSwaggerWrapper(GetUserProfileResponseDto)
   @ApiOperation({ summary: 'Lấy thông tin người dùng (kèm URL avatar từ S3)' })
