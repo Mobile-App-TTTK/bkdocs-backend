@@ -14,6 +14,10 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v3
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0 # tải toàn bộ lịch sử git
+          clean: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
