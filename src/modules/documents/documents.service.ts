@@ -58,21 +58,21 @@ type FacultyDocumentsResponse = {
   imageUrl: string | null;
   isFollowingFaculty: boolean;
   document_count: number;
-  followers_count: number
+  followers_count: number;
   subjects: SubjectGroup[];
 };
 
 type SubjectDocumentsResponse = {
-  name: string; 
-  isFollowingSubject: boolean;  
-  document_count: number; 
-  followers_count: number; 
-  imageUrl: string | null; 
+  name: string;
+  isFollowingSubject: boolean;
+  document_count: number;
+  followers_count: number;
+  imageUrl: string | null;
   types: Array<{
-    name: string | null; 
+    name: string | null;
     documents: SlimDoc[];
   }>;
-}
+};
 
 function qi(name: string): string {
   if (!/^[A-Za-z0-9_]+$/.test(name)) {
@@ -104,39 +104,41 @@ export class DocumentsService {
     private readonly imageRepo: Repository<Image>,
     private readonly s3Service: S3Service,
     private readonly notificationsService: NotificationsService,
-    private readonly dataSource: DataSource,
+    private readonly dataSource: DataSource
   ) {}
 
-private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followerCol: string }> {
-  if (this.ufColsCache) return this.ufColsCache;
+  private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followerCol: string }> {
+    if (this.ufColsCache) return this.ufColsCache;
 
-  const cols: Array<{ column_name: string }> = await this.dataSource.query(`
+    const cols: Array<{ column_name: string }> = await this.dataSource.query(`
     SELECT column_name
     FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'user_followers'
     ORDER BY ordinal_position
   `);
-  const names = cols.map(c => c.column_name);
+    const names = cols.map((c) => c.column_name);
 
-  if (names.includes('following_id') && names.includes('follower_id')) {
-    this.ufColsCache = { targetCol: 'following_id', followerCol: 'follower_id' };
-    return this.ufColsCache;
-  }
+    if (names.includes('following_id') && names.includes('follower_id')) {
+      this.ufColsCache = { targetCol: 'following_id', followerCol: 'follower_id' };
+      return this.ufColsCache;
+    }
 
-  const candidates = [
-    { targetCol: 'users_id_1', followerCol: 'users_id_2' },
-    { targetCol: 'user_id_1',  followerCol: 'user_id_2'  },
-    { targetCol: 'userid_1',   followerCol: 'userid_2'    },
-    { targetCol: 'userId_1',   followerCol: 'userId_2'    },
-    { targetCol: 'usersId_1',  followerCol: 'usersId_2'   },
-  ];
-  const found = candidates.find(p => names.includes(p.targetCol) && names.includes(p.followerCol));
-  if (found) {
-    this.ufColsCache = found;
-    return found;
-  }
+    const candidates = [
+      { targetCol: 'users_id_1', followerCol: 'users_id_2' },
+      { targetCol: 'user_id_1', followerCol: 'user_id_2' },
+      { targetCol: 'userid_1', followerCol: 'userid_2' },
+      { targetCol: 'userId_1', followerCol: 'userId_2' },
+      { targetCol: 'usersId_1', followerCol: 'usersId_2' },
+    ];
+    const found = candidates.find(
+      (p) => names.includes(p.targetCol) && names.includes(p.followerCol)
+    );
+    if (found) {
+      this.ufColsCache = found;
+      return found;
+    }
 
-  const fkRows: Array<{ column_name: string }> = await this.dataSource.query(`
+    const fkRows: Array<{ column_name: string }> = await this.dataSource.query(`
     SELECT kcu.column_name
     FROM information_schema.table_constraints tc
     JOIN information_schema.key_column_usage kcu
@@ -150,25 +152,26 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
       AND ccu.table_name = 'users' AND ccu.column_name = 'id'
   `);
 
-  const fkCols = fkRows.map(r => r.column_name);
-  const maybeFollowing = fkCols.find(c => /follow.*ing/i.test(c));
-  const maybeFollower  = fkCols.find(c => /follower/i.test(c));
+    const fkCols = fkRows.map((r) => r.column_name);
+    const maybeFollowing = fkCols.find((c) => /follow.*ing/i.test(c));
+    const maybeFollower = fkCols.find((c) => /follower/i.test(c));
 
-  if (maybeFollowing && maybeFollower) {
-    this.ufColsCache = { targetCol: maybeFollowing, followerCol: maybeFollower };
-    return this.ufColsCache;
-  }
+    if (maybeFollowing && maybeFollower) {
+      this.ufColsCache = { targetCol: maybeFollowing, followerCol: maybeFollower };
+      return this.ufColsCache;
+    }
 
-  if (fkCols.length >= 2) {
-    const [c1, c2] = fkCols;
-    this.ufColsCache = { targetCol: c1, followerCol: c2 };
-    this.logger.warn(`[resolveUserFollowerColumns] Không phân biệt được follower/following rõ ràng.
+    if (fkCols.length >= 2) {
+      const [c1, c2] = fkCols;
+      this.ufColsCache = { targetCol: c1, followerCol: c2 };
+      this.logger
+        .warn(`[resolveUserFollowerColumns] Không phân biệt được follower/following rõ ràng.
       Đang tạm coi "${c1}" = following_id (target), "${c2}" = follower_id.`);
-    return this.ufColsCache;
-  }
+      return this.ufColsCache;
+    }
 
-  throw new Error('Không xác định được cột của user_followers. Hãy đặt thủ công.');
-}
+    throw new Error('Không xác định được cột của user_followers. Hãy đặt thủ công.');
+  }
 
   async search(q: SearchDocumentsDto, currentUserId?: string): Promise<any> {
     const faculty = q.faculty?.trim();
@@ -190,7 +193,7 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
         .addGroupBy('f.name')
         .getRawMany<{ name: string; count: string }>();
 
-      return rows.map(r => ({ name: r.name, count: Number(r.count) || 0 }));
+      return rows.map((r) => ({ name: r.name, count: Number(r.count) || 0 }));
     }
 
     if (searchFor === 'subject' && keyword) {
@@ -205,9 +208,8 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
         .addGroupBy('s.name')
         .getRawMany<{ name: string; count: string }>();
 
-      return rows.map(r => ({ name: r.name, count: Number(r.count) || 0 }));
+      return rows.map((r) => ({ name: r.name, count: Number(r.count) || 0 }));
     }
-
 
     if (searchFor === 'user' && keyword) {
       const kw = `%${keyword}%`;
@@ -216,17 +218,13 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
         .createQueryBuilder('u')
         .where('u.name ILIKE :kw', { kw })
         .orWhere(`split_part(u.email, '@', 1) ILIKE :kw`, { kw })
-        .select([
-          'u.id AS id',
-          'u.name AS name',
-          'u.image_key AS "imageKey"',
-        ])
+        .select(['u.id AS id', 'u.name AS name', 'u.image_key AS "imageKey"'])
         .orderBy('u.name', 'ASC')
         .getRawMany<{ id: string; name: string; imageKey: string | null }>();
 
       if (baseUsers.length === 0) return [];
 
-      const ids = baseUsers.map(u => u.id);
+      const ids = baseUsers.map((u) => u.id);
 
       const { targetCol, followerCol } = await this.resolveUserFollowerColumns();
 
@@ -250,7 +248,7 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
         .groupBy('up.id')
         .getRawMany<{ id: string; documentsCount: string }>();
       const documentsCountMap = new Map<string, number>(
-        docRows.map(r => [r.id, Number(r.documentsCount) || 0])
+        docRows.map((r) => [r.id, Number(r.documentsCount) || 0])
       );
 
       let isFollowingSet = new Set<string>();
@@ -264,10 +262,10 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
         isFollowingSet = new Set(followedRows.map((r: any) => r.id));
       }
 
-      return baseUsers.map(u => ({
+      return baseUsers.map((u) => ({
         id: u.id,
         name: u.name,
-        image_key: u.imageKey ?? null,                 
+        image_key: u.imageKey ?? null,
         followersCount: followersCountMap.get(u.id) ?? 0,
         documentsCount: documentsCountMap.get(u.id) ?? 0,
         isFollowing: currentUserId ? isFollowingSet.has(u.id) : false,
@@ -302,9 +300,9 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
       qb.andWhere(
         new Brackets((b) => {
           b.where('d.title ILIKE :kw')
-          .orWhere('d.description ILIKE :kw')
-          .orWhere('d.thumbnail_key ILIKE :kw')
-          .orWhere('d.file_key ILIKE :kw');
+            .orWhere('d.description ILIKE :kw')
+            .orWhere('d.thumbnail_key ILIKE :kw')
+            .orWhere('d.file_key ILIKE :kw');
         }),
         { kw: `%${keyword}%` }
       );
@@ -372,7 +370,7 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
         .where('u.name ILIKE :kw', { kw: `%${keyword}%` })
         .select('u.name', 'name')
         .getRawMany<{ name: string }>();
-      users = userRows.map(u => u.name);
+      users = userRows.map((u) => u.name);
     }
 
     if (!keyword && faculty) {
@@ -385,12 +383,14 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
         .addGroupBy('f.name')
         .getRawMany<{ name: string; count: string }>();
 
-      const faculties = facRows.map(r => ({
+      const faculties = facRows.map((r) => ({
         name: r.name,
         count: Number(r.count) || 0,
         documents: result
-          .filter(d => ((d.faculty?.name ?? '') || '').toLowerCase() === (r.name || '').toLowerCase())
-          .map(d => ({ ...d, faculty: null })),
+          .filter(
+            (d) => ((d.faculty?.name ?? '') || '').toLowerCase() === (r.name || '').toLowerCase()
+          )
+          .map((d) => ({ ...d, faculty: null })),
       }));
       return { faculties };
     }
@@ -405,12 +405,14 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
         .addGroupBy('s.name')
         .getRawMany<{ name: string; count: string }>();
 
-      const subjects = subRows.map(r => ({
+      const subjects = subRows.map((r) => ({
         name: r.name,
         count: Number(r.count) || 0,
         documents: result
-          .filter(d => ((d.subject?.name ?? '') || '').toLowerCase() === (r.name || '').toLowerCase())
-          .map(d => ({ ...d, subject: null })),
+          .filter(
+            (d) => ((d.subject?.name ?? '') || '').toLowerCase() === (r.name || '').toLowerCase()
+          )
+          .map((d) => ({ ...d, subject: null })),
       }));
       return { subjects };
     }
@@ -496,10 +498,10 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
 
     type Hit = { name: string };
     const hits: Hit[] = [
-      ...docs.map(d => ({ name: d.title })),
-      ...subs.map(s => ({ name: s.name })),
-      ...facs.map(f => ({ name: f.name })),
-      ...users.map(u => ({ name: u.name })),
+      ...docs.map((d) => ({ name: d.title })),
+      ...subs.map((s) => ({ name: s.name })),
+      ...facs.map((f) => ({ name: f.name })),
+      ...users.map((u) => ({ name: u.name })),
     ];
 
     const score = (name: string) => {
@@ -584,7 +586,10 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
     });
   }
 
-  async getDocumentsByFaculty(facultyId: string, currentUserId?: string) : Promise<FacultyDocumentsResponse> {
+  async getDocumentsByFaculty(
+    facultyId: string,
+    currentUserId?: string
+  ): Promise<FacultyDocumentsResponse> {
     const faculty = await this.facultyRepo.findOne({ where: { id: facultyId } });
     if (!faculty) throw new NotFoundException(`Faculty with ID "${facultyId}" not found`);
 
@@ -616,10 +621,15 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
     });
 
     type SlimDoc = {
-      id: string; title: string; downloadCount: number; uploadDate: Date;
+      id: string;
+      title: string;
+      downloadCount: number;
+      uploadDate: Date;
       subject: { name: string; id?: string } | null;
-      faculty: { name: string } | null; thumbnail: string | null;
-      score: number | null; type: string | null;
+      faculty: { name: string } | null;
+      thumbnail: string | null;
+      score: number | null;
+      type: string | null;
     };
     type Group = { subjectId: string | null; subjectName: string | null; docs: SlimDoc[] };
 
@@ -682,18 +692,26 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
         if (r.d_thumbnail_key) {
           try {
             downloadUrl = await this.s3Service.getPresignedDownloadUrl(
-              r.d_thumbnail_key, r.d_title || undefined, true
+              r.d_thumbnail_key,
+              r.d_title || undefined,
+              true
             );
-          } catch { downloadUrl = null; }
+          } catch {
+            downloadUrl = null;
+          }
         }
-        const fileType = r.d_file_key ? (r.d_file_key.split('.').pop() || '').toLowerCase() || null : null;
+        const fileType = r.d_file_key
+          ? (r.d_file_key.split('.').pop() || '').toLowerCase() || null
+          : null;
 
         return {
           id: r.d_id,
           title: r.d_title,
           downloadCount: Number(r.d_download_count) || 0,
           uploadDate: r.d_upload_date,
-          subject: r.subject_name ? { name: r.subject_name, id: r.subject_id as any } : null as any,
+          subject: r.subject_name
+            ? { name: r.subject_name, id: r.subject_id as any }
+            : (null as any),
           faculty: null,
           thumbnail: downloadUrl,
           score: r.rating_score != null ? Number(r.rating_score) : null,
@@ -710,7 +728,9 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
       map[sid].docs.push(d);
     }
 
-    const subjectIds = Object.values(map).map(g => g.subjectId).filter((x): x is string => !!x);
+    const subjectIds = Object.values(map)
+      .map((g) => g.subjectId)
+      .filter((x): x is string => !!x);
     let followingSet = new Set<string>();
     if (currentUserId && subjectIds.length > 0) {
       const followedRows = await this.userRepo
@@ -720,7 +740,7 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
         .andWhere('s.id IN (:...ids)', { ids: subjectIds })
         .select('s.id', 'id')
         .getRawMany<{ id: string }>();
-      followingSet = new Set(followedRows.map(r => r.id));
+      followingSet = new Set(followedRows.map((r) => r.id));
     }
 
     const subjects = Object.values(map).map((g) => ({
@@ -739,7 +759,7 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
 
     return {
       name: faculty.name,
-      imageUrl: facultyImageUrl, 
+      imageUrl: facultyImageUrl,
       document_count: docs.length,
       followers_count: followersCount,
       isFollowingFaculty,
@@ -747,7 +767,10 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
     };
   }
 
-  async getDocumentsBySubject(subjectId: string, currentUserId?: string) : Promise<SubjectDocumentsResponse> {
+  async getDocumentsBySubject(
+    subjectId: string,
+    currentUserId?: string
+  ): Promise<SubjectDocumentsResponse> {
     const subjectEntity = await this.subjectRepo.findOne({ where: { id: subjectId } });
     if (!subjectEntity) {
       throw new NotFoundException(`Subject with ID "${subjectId}" not found`);
@@ -790,7 +813,7 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
         'd.download_count AS d_download_count',
         'd.upload_date AS d_upload_date',
         'd.thumbnail_key AS d_thumbnail_key',
-        'dt.name AS type_name',          
+        'dt.name AS type_name',
         'AVG(rating.score) AS rating_score',
       ]);
 
@@ -801,7 +824,7 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
       .addGroupBy('d.upload_date')
       .addGroupBy('d.thumbnail_key')
       .addGroupBy('d.file_key')
-      .addGroupBy('dt.name');            
+      .addGroupBy('dt.name');
 
     const rows = await qb.getRawMany<{
       d_id: string;
@@ -811,7 +834,7 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
       d_download_count: number;
       d_upload_date: Date;
       d_thumbnail_key: string | null;
-      type_name: string | null;         
+      type_name: string | null;
       rating_score: string | number | null;
     }>();
 
@@ -830,8 +853,9 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
           }
         }
 
-        const fileType =
-          r.d_file_key ? (r.d_file_key.split('.').pop() || '').toLowerCase() || null : null;
+        const fileType = r.d_file_key
+          ? (r.d_file_key.split('.').pop() || '').toLowerCase() || null
+          : null;
 
         return {
           id: r.d_id,
@@ -840,8 +864,8 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
           uploadDate: r.d_upload_date,
           thumbnail: downloadUrl,
           score: r.rating_score != null ? Number(r.rating_score) : null,
-          type: fileType,               
-          __typeName: r.type_name ?? null, 
+          type: fileType,
+          __typeName: r.type_name ?? null,
         } as SlimDoc & { __typeName?: string | null };
       })
     );
@@ -861,7 +885,7 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
       document_count: docs.length,
       followers_count: followersCount,
       imageUrl,
-      isFollowingSubject, 
+      isFollowingSubject,
       types,
     };
   }
@@ -1167,6 +1191,7 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
       .leftJoinAndSelect('document.uploader', 'uploader')
       .leftJoinAndSelect('document.faculties', 'faculties')
       .leftJoinAndSelect('document.subject', 'subject')
+      .leftJoinAndSelect('document.documentType', 'documentType')
       .where('document.status = :status', { status: Status.PENDING });
 
     // Thêm full-text search nếu có keyword
@@ -1174,15 +1199,15 @@ private async resolveUserFollowerColumns(): Promise<{ targetCol: string; followe
       const searchTerm = `%${fullTextSearch.trim()}%`;
       queryBuilder.andWhere(
         new Brackets((qb) => {
-          qb.where('document.title ILIKE :searchTerm', { searchTerm })
-            .orWhere('document.description ILIKE :searchTerm', { searchTerm })
-            .orWhere('subject.name ILIKE :searchTerm', { searchTerm })
-            .orWhere('faculties.name ILIKE :searchTerm', { searchTerm })
-            .orWhere('uploader.name ILIKE :searchTerm', { searchTerm });
+          qb.where(`unaccent(document.title) ILIKE unaccent(:searchTerm)`, { searchTerm })
+            .orWhere(`unaccent(document.description) ILIKE unaccent(:searchTerm)`, { searchTerm })
+            .orWhere(`unaccent(subject.name) ILIKE unaccent(:searchTerm)`, { searchTerm })
+            .orWhere(`unaccent(faculties.name) ILIKE unaccent(:searchTerm)`, { searchTerm })
+            .orWhere(`unaccent(documentType.name) ILIKE unaccent(:searchTerm)`, { searchTerm })
+            .orWhere(`unaccent(uploader.name) ILIKE unaccent(:searchTerm)`, { searchTerm });
         })
       );
     }
-
     const [data, total] = await queryBuilder
       .orderBy('document.uploadDate', 'DESC')
       .take(limit)
