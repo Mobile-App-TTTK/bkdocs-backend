@@ -190,7 +190,7 @@ export class DocumentsController {
     @UploadedFiles()
     files: {
       file?: Express.Multer.File[];
-      thumbnailFile?: Express.Multer.File;
+      thumbnailFile?: Express.Multer.File[];
       images?: Express.Multer.File[];
     },
     @Body('facultyIds') facultyIds: string[],
@@ -202,7 +202,7 @@ export class DocumentsController {
     this.logger.log(`Người dùng ID: ${req.user.userId} đang tải lên tài liệu mới`);
     const userId = req.user.userId;
     if (!files.file?.length) throw new BadRequestException('Thiếu file tài liệu chính');
-
+    if (!files.thumbnailFile?.length) throw new BadRequestException('Thiếu file hình thu nhỏ');
     const normalizedFacultyIds =
       typeof facultyIds === 'string'
         ? (facultyIds as string).split(',').map((id) => id.trim())
@@ -214,7 +214,7 @@ export class DocumentsController {
       files.file[0],
       files.images || [],
       userId,
-      files.thumbnailFile,
+      files.thumbnailFile[0],
       normalizedFacultyIds,
       subjectId,
       documentTypeId,

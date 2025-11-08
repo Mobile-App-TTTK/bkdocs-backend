@@ -30,8 +30,6 @@ export class Comment {
   @Column({ name: 'image_url', type: 'text', nullable: true })
   imageUrl: string | null;
 
-  @OneToMany(() => Image, (image) => image.comment)
-  images: Image[];
   /** Người bình luận */
   @ManyToOne(() => User, (user) => user.comments, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
