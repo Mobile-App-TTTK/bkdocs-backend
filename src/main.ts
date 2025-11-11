@@ -6,7 +6,15 @@ import { AllExceptionsFilter } from '@common/filters/http-exception.filter';
 import { ResponseInterceptor } from '@common/interceptors/transform.interceptor';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+    }),
+  );
 
   app.enableCors({
     origin: true, // Allow all origins, or specify specific origins like ['http://localhost:3000']

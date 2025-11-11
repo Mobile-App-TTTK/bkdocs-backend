@@ -14,17 +14,17 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @ApiBody({ type: RegisterRequestOtpDto })
-  @Post('register/request-otp')
+  @Post('otp')
   async requestRegisterOtp(@Body() dto: RegisterRequestOtpDto) {
     return this.authService.requestRegisterOtp(dto.email);
   }
 
-  @Post('verify-otp')
+  @Post('otp/verify')
   async verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.authService.verifyOtp(dto.email, dto.otp);
   }
 
-  @Post('register/complete')
+  @Post('register')
   async registerComplete(@Body() dto: RegisterCompleteDto) {
     return this.authService.registerComplete(dto.name, dto.email, dto.password, dto.token);
   }
@@ -34,12 +34,12 @@ export class AuthController {
     return this.authService.login(dto.email, dto.password);
   }
 
-  @Post('forgot-password')
+  @Post('password/reset')
   async forgot(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgot(dto.email);
   }
 
-  @Post('change-password')
+  @Post('password/change')
   async changePassword(@Body() dto: ChangePasswordDto) {
     return this.authService.changePassword(dto.token, dto.newPassword);
   }

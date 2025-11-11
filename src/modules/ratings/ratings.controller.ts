@@ -18,14 +18,14 @@ import { LimitedReviewItemDto } from './dtos/limited-review-item.dto';
 export class RatesController {
   constructor(private readonly ratesService: RatesService) {}
 
-  @Get('counts')
+  @Get('distribution')
   @ApiOperation({ summary: 'Đánh giá và số lượng' })
   @ApiOkResponse({ description: 'List các cặp score và số lượng', type: [Object] })
   async getScoreCounts() {
     return this.ratesService.getScoreCounts();
   }
 
-  @Get('document/:id')
+  @Get('document/:id/reviews')
   @ApiOperation({ summary: 'Get đánh giá và nhận xét' })
   @ApiOkResponse({ type: [ReviewItemDto] })
   @ApiQuery({ name: 'score', required: false, enum: ReviewScoreFilter })
@@ -38,7 +38,7 @@ export class RatesController {
     return this.ratesService.getAllDocument({ documentId: id, score: parsed as any });
   }
 
-  @Post('document/:documentId')
+  @Post('document/:id/reviews')
   @ApiOperation({ summary: 'Tạo/cập nhật đánh giá và thêm nhận xét cho tài liệu (kèm ảnh)' })
   @ApiParam({ name: 'documentId', description: 'ID tài liệu' })
   @ApiConsumes('multipart/form-data')
@@ -57,13 +57,13 @@ export class RatesController {
   async createReview(
     @Param('documentId') documentId: string,
     @Body() dto: CreateReviewDto,
-    @UploadedFile() image: Express.Multer.File | undefined,
+    @UploadedFile() image: Express.Multer.File,
     @Req() req: any
   ): Promise<void> {
     await this.ratesService.createOrUpdateRatingAndComment(documentId, (req as any).user.userId, dto, image);
   }
 
-  @Get('document/:id/top')
+  @Get('document/:id/reviews/recent')
   @ApiOperation({ summary: 'Lấy k đánh giá+bình luận gần nhất của tài liệu' })
   @ApiParam({ name: 'id', description: 'ID tài liệu' })
   @ApiQuery({ name: 'k', required: false, description: 'Số item cần lấy (mặc định 10, tối đa 100)' })
