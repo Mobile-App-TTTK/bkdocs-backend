@@ -105,8 +105,9 @@ export class RatesService {
     documentId: string,
     userId: string,
     dto: CreateReviewDto,
-    image?: Express.Multer.File, // 🔹 nhận file
+    image?: Express.Multer.File,
   ): Promise<void> {
+
     const docId = (documentId ?? '').toString().trim();
     const uId = (userId ?? '').toString().trim();
     if (!docId) throw new BadRequestException('documentId is required');
@@ -123,7 +124,6 @@ export class RatesService {
       const ratingRepo = manager.getRepository(Rating);
       const commentRepo = manager.getRepository(Comment);
 
-      // 1) Upsert rating
       const existingRating = await ratingRepo.findOne({
         where: { user: { id: uId }, document: { id: docId } },
       });
@@ -141,21 +141,16 @@ export class RatesService {
         );
       }
 
-      // 2) Upsert comment (+ ảnh)
       const existingComment = await commentRepo.findOne({
         where: { user: { id: uId }, document: { id: docId } },
       });
 
-      // Nếu có file ảnh -> upload S3
       let newImageKey: string | null = null;
       let newImageUrl: string | null = null;
 
       if (image) {
         newImageKey = await this.s3Service.uploadFile(image, 'comment-images');
-        // LƯU Ý: Presigned URL có hạn. Bạn đang yêu cầu lưu image_url vào DB,
-        // điều này sẽ hết hạn. Nếu bucket PUBLIC, có thể lưu URL public thay thế.
-        // Ở đây vẫn tạo presigned để đáp ứng yêu cầu:
-        newImageUrl = await this.s3Service.getPresignedDownloadUrl(newImageKey, undefined, false, 3600);
+        newImageUrl = await this.s3Service.getPresignedDownloadUrl(newImageKey);
       }
 
       if (existingComment) {
