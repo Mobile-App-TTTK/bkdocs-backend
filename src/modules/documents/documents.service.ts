@@ -264,6 +264,7 @@ export class DocumentsService {
     const keyword = q.keyword?.trim();
     const searchFor = q.searchFor ?? 'all';
 
+    // ========== FACULTY ONLY ==========
     if (searchFor === 'faculty' && keyword) {
       const kw = `%${keyword}%`;
       const rows = await this.facultyRepo
@@ -292,6 +293,7 @@ export class DocumentsService {
       }));
     }
 
+    // ========== SUBJECT ONLY ==========
     if (searchFor === 'subject' && keyword) {
       const kw = `%${keyword}%`;
       const rows = await this.subjectRepo
@@ -318,6 +320,7 @@ export class DocumentsService {
       }));
     }
 
+    // ========== USER ONLY (image_url từ S3) ==========
     if (searchFor === 'user' && keyword) {
       const kw = `%${keyword}%`;
 
@@ -368,17 +371,38 @@ export class DocumentsService {
         isFollowingSet = new Set(followedRows.map((r: any) => r.id));
       }
 
-      return baseUsers.map((u) => ({
-        id: u.id,
-        name: u.name,
-        image_key: u.imageKey ?? null,
-        followersCount: followersCountMap.get(u.id) ?? 0,
-        documentsCount: documentsCountMap.get(u.id) ?? 0,
-        isFollowing: currentUserId ? isFollowingSet.has(u.id) : false,
-      }));
+      const users = await Promise.all(
+        baseUsers.map(async (u) => {
+          let image_url: string | null = null;
+          if (u.imageKey) {
+            try {
+              image_url = await this.s3Service.getPresignedDownloadUrl(
+                u.imageKey,
+                u.name || undefined,
+                false
+              );
+            } catch {
+              image_url = null;
+            }
+          }
+
+          return {
+            id: u.id,
+            name: u.name,
+            image_url,
+            followersCount: followersCountMap.get(u.id) ?? 0,
+            documentsCount: documentsCountMap.get(u.id) ?? 0,
+            isFollowing: currentUserId ? isFollowingSet.has(u.id) : false,
+          };
+        })
+      );
+
+      return users;
     }
 
+    // ========== ALL: documents + users + subjects + faculties ==========
     if (searchFor === 'all') {
+      // ----- Documents -----
       const qb = this.documentRepo
         .createQueryBuilder('d')
         .leftJoin('d.subject', 'subject')
@@ -474,6 +498,7 @@ export class DocumentsService {
         return result;
       })();
 
+      // ----- Users (image_url từ S3) -----
       const usersPromise = (async () => {
         if (!keyword) return [];
 
@@ -525,16 +550,36 @@ export class DocumentsService {
           isFollowingSet = new Set(followedRows.map((r: any) => r.id));
         }
 
-        return baseUsers.map((u) => ({
-          id: u.id,
-          name: u.name,
-          image_key: u.imageKey ?? null,
-          followersCount: followersCountMap.get(u.id) ?? 0,
-          documentsCount: documentsCountMap.get(u.id) ?? 0,
-          isFollowing: currentUserId ? isFollowingSet.has(u.id) : false,
-        }));
+        const users = await Promise.all(
+          baseUsers.map(async (u) => {
+            let image_url: string | null = null;
+            if (u.imageKey) {
+              try {
+                image_url = await this.s3Service.getPresignedDownloadUrl(
+                  u.imageKey,
+                  u.name || undefined,
+                  false
+                );
+              } catch {
+                image_url = null;
+              }
+            }
+
+            return {
+              id: u.id,
+              name: u.name,
+              image_url,
+              followersCount: followersCountMap.get(u.id) ?? 0,
+              documentsCount: documentsCountMap.get(u.id) ?? 0,
+              isFollowing: currentUserId ? isFollowingSet.has(u.id) : false,
+            };
+          })
+        );
+
+        return users;
       })();
 
+      // ----- Subjects -----
       const subjectsPromise = (async () => {
         if (keyword) {
           const kw = `%${keyword}%`;
@@ -579,6 +624,7 @@ export class DocumentsService {
             .getRawMany<{ id: string; name: string; image_url: string | null; count: string }>();
 
           return rows.map((r) => ({
+            id: r.id,
             name: r.name,
             count: Number(r.count) || 0,
             image_url: r.image_url ?? null,
@@ -588,6 +634,7 @@ export class DocumentsService {
         return [];
       })();
 
+      // ----- Faculties -----
       const facultiesPromise = (async () => {
         if (keyword) {
           const kw = `%${keyword}%`;
@@ -988,6 +1035,7 @@ export class DocumentsService {
     }
 
     const subjects = Object.values(map).map((g) => ({
+      id: g.subjectId,
       name: g.subjectName,
       isFollowing: g.subjectId ? followingSet.has(g.subjectId) : false,
       documents: g.docs.map((d) => ({
