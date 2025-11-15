@@ -50,6 +50,8 @@ export class DocumentResponseDto {
   @ApiProperty({ example: 100 })
   downloadCount: number;
 
+  @ApiProperty({ example: 4.5, required: false })
+  overallRating?: number;
   constructor(partial: Partial<DocumentResponseDto>) {
     Object.assign(this, partial);
   }

@@ -17,7 +17,6 @@ import { User } from '../users/entities/user.entity';
 import { S3Service } from '../s3/s3.service';
 import { DocumentsService } from '../documents/documents.service';
 import { ChatResponseDto } from './dto/chat-response.dto';
-import { Status } from '@common/enums/status.enum';
 import { ChatHistoryItemDto } from './dto/chat-request.dto';
 import { UserRole } from '@common/enums/user-role.enum';
 

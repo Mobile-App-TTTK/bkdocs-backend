@@ -1586,6 +1586,15 @@ export class DocumentsService {
                   false
                 )
               : undefined,
+            faculties: doc.faculties ? doc.faculties.map((f) => f.name) : undefined,
+            subject: doc.subject ? doc.subject.name : undefined,
+            downloadCount: doc.downloadCount,
+            fileType: doc.fileType || undefined,
+            documentType: doc.documentType ? doc.documentType.name : undefined,
+            overallRating:
+              doc.ratings && doc.ratings.length > 0
+                ? doc.ratings.reduce((sum, rating) => sum + rating.score, 0) / doc.ratings.length
+                : 0,
           })
       )
     );
@@ -1601,7 +1610,7 @@ export class DocumentsService {
       throw new BadRequestException(`Subject with name "${name}" already exists`);
     }
 
-    const imageKey = image ? await this.s3Service.uploadFile(image, 'subject-images') : null;
+    const imageKey = image ? await this.s3Service.uploadFile(image, 'subject-images') : undefined;
     const newSubject = await this.subjectRepo.create({
       name,
       description,
