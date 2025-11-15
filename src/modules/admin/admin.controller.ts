@@ -47,7 +47,7 @@ export class AdminController {
   }
 
   @ApiOperation({ summary: 'Duyệt tài liệu đang pending → active và gửi broadcast' })
-  @Patch('document:id/approve')
+  @Patch('document:id/approval')
   async approveDocument(@Param('id') docId: string) {
     const document = await this.documentsService.updateDocumentStatus(docId, Status.ACTIVE);
 
@@ -111,7 +111,7 @@ export class AdminController {
     return this.documentsService.createSubject(name, description, image);
   }
 
-  @Post('user/:userId/upgrade-to-admin')
+  @Patch('/users/:userId/role-admin')
   @ApiOperation({ summary: 'Nâng cấp người dùng thành admin' })
   @ApiOkResponse({ description: 'User upgraded to admin', type: User })
   async upgradeUserToAdmin(@Param('userId') userId: string): Promise<User> {

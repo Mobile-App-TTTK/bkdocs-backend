@@ -32,7 +32,8 @@ export class NotificationsController {
 
   @ApiOperation({ summary: 'Đánh dấu đã đọc notification' })
   @ApiParam({ name: 'id', required: true, description: 'ID of the notification' })
-  @Patch(':id/mark-as-read')
+  // endpoint chỉ có danh từ
+  @Patch(':id')
   async markAsRead(@Param('id') notificationId: string): Promise<Notification> {
     return this.notificationsService.markAsRead(notificationId);
   }
