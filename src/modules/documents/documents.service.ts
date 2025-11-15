@@ -938,6 +938,7 @@ export class DocumentsService {
       .leftJoin('d.faculties', 'faculty')
       .leftJoin('d.ratings', 'rating')
       .where('faculty.id = :fid', { fid: facultyId })
+      .andWhere('d.status = :status', { status: Status.ACTIVE })
       .select([
         'd.id AS d_id',
         'd.title AS d_title',
@@ -1097,6 +1098,7 @@ export class DocumentsService {
       .leftJoin('d.ratings', 'rating')
       .leftJoin('d.documentType', 'dt')
       .where('subject.id = :sid', { sid: subjectId })
+      .andWhere('d.status = :status', { status: Status.ACTIVE })
       .select([
         'd.id AS d_id',
         'd.title AS d_title',
@@ -1558,8 +1560,9 @@ export class DocumentsService {
     page: number
   ): Promise<DocumentResponseDto[]> {
     const documents = await this.documentRepo.find({
-      where: { uploader: { id: userId } },
+      where: { uploader: { id: userId }, status: Status.ACTIVE },
       relations: ['faculties', 'subject'],
+
       take: limit,
       skip: limit * (page - 1),
     });

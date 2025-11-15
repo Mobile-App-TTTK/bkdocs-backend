@@ -109,7 +109,7 @@ export class UsersController {
     return this.documentsService.getDocumentsByUserId(userId, limit, page);
   }
 
-  @Post(':userId/toggle-follow')
+  @Patch(':userId/follow')
   @ApiOperation({ summary: 'Theo dõi hoặc bỏ theo dõi người dùng khác' })
   async toggleFollowUser(@Req() req: any, @Param('userId') userIdToFollow: string): Promise<void> {
     return this.userService.toggleFollowUser(req.user.userId, userIdToFollow);
