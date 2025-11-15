@@ -15,10 +15,10 @@ export class Subject {
   description: string;
 
   @Column({ name: 'image_key', nullable: true, type: 'text' })
-  imageKey: string | null;
+  imageKey: string;
 
   @Column({ name: 'image_url', type: 'text', nullable: true })
-  imageUrl: string | null;
+  imageUrl: string;
 
   /** Một môn học có thể có nhiều tài liệu */
   @OneToMany(() => Document, (document) => document.subject)

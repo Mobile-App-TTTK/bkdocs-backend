@@ -280,4 +280,15 @@ export class DocumentsController {
     const document = await this.documentsService.getDocumentById(id);
     return document;
   }
+
+    @Get(':userId/documents')
+    @ApiResponseSwaggerWrapper(DocumentResponseDto, { status: 200, isArray: true })
+    @ApiOperation({ summary: 'Lấy danh sách tài liệu của người dùng' })
+    async getUserDocuments(
+      @Param('userId') userId: string,
+      @Query('limit') limit: number,
+      @Query('page') page: number
+    ): Promise<DocumentResponseDto[]> {
+      return this.documentsService.getDocumentsByUserId(userId, limit, page);
+    }
 }
