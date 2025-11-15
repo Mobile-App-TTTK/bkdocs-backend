@@ -118,7 +118,8 @@ export class AdminController {
     return this.userService.upgradeUserRole(userId, UserRole.ADMIN);
   }
 
-  @Post('user/:userId/toggle-verify')
+  // để api path là danh từ thôi
+  @Patch('user/:userId/verification')
   @ApiOperation({ summary: 'Cho người dùng tick xanh' })
   @ApiOkResponse({ description: 'User verified', type: User })
   async toggleVerifyUser(@Param('userId') userId: string): Promise<User> {

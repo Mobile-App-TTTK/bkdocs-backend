@@ -14,6 +14,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { LoggerModule } from './modules/logger/logger.module';
 import { MulterModule } from '@nestjs/platform-express';
 import { AdminModule } from './modules/admin/admin.module';
+import { AiModule } from './modules/ai/ai.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -53,6 +54,8 @@ import { AdminModule } from './modules/admin/admin.module';
     LoggerModule,
 
     AdminModule,
+
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService, Reflector],

@@ -90,4 +90,30 @@ export class S3Service implements OnModuleInit {
       throw new InternalServerErrorException('Không thể tải file lên S3');
     }
   }
+
+  /**
+   * Get file buffer from S3 for AI processing
+   */
+  async getFileBuffer(fileKey: string): Promise<Buffer> {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: fileKey,
+      });
+
+      const response = await this.s3Client.send(command);
+      const stream = response.Body as any;
+
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) {
+        chunks.push(Buffer.from(chunk));
+      }
+
+      this.logger.log(`Downloaded file buffer for: ${fileKey}`);
+      return Buffer.concat(chunks);
+    } catch (error) {
+      this.logger.error(`Failed to get file buffer from S3: ${error.message}`);
+      throw new InternalServerErrorException(`Cannot download file from S3: ${error.message}`);
+    }
+  }
 }

@@ -63,7 +63,7 @@ export class NotificationsController {
 
   @ApiParam({ name: 'facultyId', example: '243064f6-f97d-410d-b23d-68b4dbf417b8' })
   @ApiOperation({ summary: 'Đăng ký theo dõi một khoa' })
-  @Post('faculty/:facultyId/subscribe')
+  @Post('faculty/:facultyId/subscription')
   async subscribeFaculty(@Param('facultyId') facultyId: string, @Req() req: any) {
     const userId = req.user.userId;
     if (!facultyId) throw new BadRequestException('Thiếu facultyId');
@@ -73,7 +73,7 @@ export class NotificationsController {
 
   @ApiParam({ name: 'subjectId', example: '3c926c5e-38a8-4a81-b4b1-1d93643784d6' })
   @ApiErrorResponseSwaggerWrapper({ status: 400, description: 'Thiếu subjectId' })
-  @Post('subject/:subjectId/subscribe')
+  @Post('subject/:subjectId/subscription')
   @ApiOperation({ summary: 'Đăng ký theo dõi một môn học' })
   async subscribeSubject(@Param('subjectId') subjectId: string, @Req() req: any) {
     const userId = req.user.userId;
@@ -84,7 +84,7 @@ export class NotificationsController {
 
   @ApiParam({ name: 'facultyId', example: '243064f6-f97d-410d-b23d-68b4dbf417b8' })
   @ApiErrorResponseSwaggerWrapper()
-  @Delete('faculty/:facultyId/unsubcribe')
+  @Delete('faculty/:facultyId/subscription')
   @ApiOperation({ summary: 'Hủy theo dõi một khoa' })
   async unsubscribeFaculty(@Param('facultyId') facultyId: string, @Req() req: any) {
     const userId = req.user.userId;
@@ -96,7 +96,7 @@ export class NotificationsController {
   @ApiParam({ name: 'subjectId', example: '3c926c5e-38a8-4a81-b4b1-1d93643784d6' })
   @ApiErrorResponseSwaggerWrapper({ status: 400, description: 'Thiếu subjectId' })
   @ApiOperation({ summary: 'Hủy theo dõi một môn học' })
-  @Delete('subject/:subjectId/unsubcribe')
+  @Delete('subject/:subjectId/subscription')
   async unsubscribeSubject(@Param('subjectId') subjectId: string, @Req() req: any) {
     const userId = req.user.userId;
     if (!subjectId) throw new BadRequestException('Thiếu subjectId');

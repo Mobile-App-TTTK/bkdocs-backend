@@ -86,6 +86,91 @@ export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
   private ufColsCache?: { targetCol: string; followerCol: string };
 
+  /**
+   * Search active documents by keywords for AI chatbot.
+   * Returns up to limit documents matching any of the keywords.
+   */
+  async searchActiveDocumentsByKeywords(keywords: string[], limit = 10): Promise<Document[]> {
+    if (keywords.length === 0) return [];
+
+    const qb = this.documentRepo
+      .createQueryBuilder('d')
+      .leftJoinAndSelect('d.subject', 'subject')
+      .leftJoinAndSelect('d.faculties', 'faculty')
+      .leftJoinAndSelect('d.documentType', 'documentType')
+      .where('d.status = :status', { status: Status.ACTIVE });
+
+    keywords.forEach((keyword, index) => {
+      const paramKey = `keyword${index}`;
+      const condition = `(
+        unaccent(d.title) ILIKE unaccent(:${paramKey}) OR
+        unaccent(d.description) ILIKE unaccent(:${paramKey}) OR
+        unaccent(subject.name) ILIKE unaccent(:${paramKey}) OR
+        unaccent(documentType.name) ILIKE unaccent(:${paramKey})
+      )`;
+      const paramValue = `%${keyword}%`;
+      if (index === 0) {
+        qb.andWhere(condition, { [paramKey]: paramValue });
+      } else {
+        qb.orWhere(condition, { [paramKey]: paramValue });
+      }
+    });
+
+    return qb
+      .orderBy('d.downloadCount', 'DESC')
+      .addOrderBy('d.uploadDate', 'DESC')
+      .take(limit)
+      .getMany();
+  }
+
+  /**
+   * Get recommended active documents based on user's subscribed subjects and faculties.
+   * Returns up to limit documents for AI chatbot recommendations.
+   */
+  async getRecommendedActiveDocuments(
+    subjectIds: string[],
+    facultyIds: string[],
+    limit = 10
+  ): Promise<Document[]> {
+    if (subjectIds.length === 0 && facultyIds.length === 0) {
+      return [];
+    }
+
+    const qb = this.documentRepo
+      .createQueryBuilder('d')
+      .leftJoinAndSelect('d.subject', 'subject')
+      .leftJoinAndSelect('d.faculties', 'faculty')
+      .leftJoinAndSelect('d.documentType', 'documentType')
+      .where('d.status = :status', { status: Status.ACTIVE });
+
+    if (subjectIds.length > 0 && facultyIds.length > 0) {
+      qb.andWhere('(subject.id IN (:...subjectIds) OR faculty.id IN (:...facultyIds))', {
+        subjectIds,
+        facultyIds,
+      });
+    } else if (subjectIds.length > 0) {
+      qb.andWhere('subject.id IN (:...subjectIds)', { subjectIds });
+    } else if (facultyIds.length > 0) {
+      qb.andWhere('faculty.id IN (:...facultyIds)', { facultyIds });
+    }
+
+    return qb
+      .orderBy('d.downloadCount', 'DESC')
+      .addOrderBy('d.uploadDate', 'DESC')
+      .take(limit)
+      .getMany();
+  }
+
+  /**
+   * Get document by ID with full relations for AI chatbot.
+   */
+  async getDocumentByIdWithRelations(documentId: string): Promise<Document | null> {
+    return this.documentRepo.findOne({
+      where: { id: documentId },
+      relations: ['subject', 'faculties', 'documentType', 'uploader'],
+    });
+  }
+
   constructor(
     @InjectRepository(Document)
     private readonly documentRepo: Repository<Document>,
@@ -199,8 +284,8 @@ export class DocumentsService {
         .addGroupBy('f.image_url')
         .getRawMany<{ id: string; name: string; image_url: string | null; count: string }>();
 
-      return rows.map(r => ({
-        id: r.id, 
+      return rows.map((r) => ({
+        id: r.id,
         name: r.name,
         count: Number(r.count) || 0,
         image_url: r.image_url ?? null,
@@ -225,8 +310,8 @@ export class DocumentsService {
         .addGroupBy('s.image_url')
         .getRawMany<{ id: string; name: string; image_url: string | null; count: string }>();
 
-      return rows.map(r => ({
-        id: r.id, 
+      return rows.map((r) => ({
+        id: r.id,
         name: r.name,
         count: Number(r.count) || 0,
         image_url: r.image_url ?? null,
@@ -246,7 +331,7 @@ export class DocumentsService {
 
       if (baseUsers.length === 0) return [];
 
-      const ids = baseUsers.map(u => u.id);
+      const ids = baseUsers.map((u) => u.id);
       const { targetCol, followerCol } = await this.resolveUserFollowerColumns();
 
       const followerRows = await this.userRepo.query(
@@ -324,7 +409,7 @@ export class DocumentsService {
             b.where('d.title ILIKE :kw')
               .orWhere('d.description ILIKE :kw')
               .orWhere(`split_part(d.thumbnail_key, '.', 1) ILIKE :kw`)
-              .orWhere(`split_part(d.file_key, '.', 1) ILIKE :kw`)
+              .orWhere(`split_part(d.file_key, '.', 1) ILIKE :kw`);
           }),
           { kw: `%${keyword}%` }
         );
@@ -397,17 +482,13 @@ export class DocumentsService {
           .createQueryBuilder('u')
           .where('u.name ILIKE :kw', { kw })
           .orWhere(`split_part(u.email, '@', 1) ILIKE :kw`, { kw })
-          .select([
-            'u.id AS id',
-            'u.name AS name',
-            'u.image_key AS "imageKey"',
-          ])
+          .select(['u.id AS id', 'u.name AS name', 'u.image_key AS "imageKey"'])
           .orderBy('u.name', 'ASC')
           .getRawMany<{ id: string; name: string; imageKey: string | null }>();
 
         if (baseUsers.length === 0) return [];
 
-        const ids = baseUsers.map(u => u.id);
+        const ids = baseUsers.map((u) => u.id);
         const { targetCol, followerCol } = await this.resolveUserFollowerColumns();
 
         const followerRows = await this.userRepo.query(
@@ -430,7 +511,7 @@ export class DocumentsService {
           .groupBy('up.id')
           .getRawMany<{ id: string; documentsCount: string }>();
         const documentsCountMap = new Map<string, number>(
-          docRows.map(r => [r.id, Number(r.documentsCount) || 0])
+          docRows.map((r) => [r.id, Number(r.documentsCount) || 0])
         );
 
         let isFollowingSet = new Set<string>();
@@ -444,7 +525,7 @@ export class DocumentsService {
           isFollowingSet = new Set(followedRows.map((r: any) => r.id));
         }
 
-        return baseUsers.map(u => ({
+        return baseUsers.map((u) => ({
           id: u.id,
           name: u.name,
           image_key: u.imageKey ?? null,
@@ -473,8 +554,8 @@ export class DocumentsService {
             .addGroupBy('s.image_url')
             .getRawMany<{ id: string; name: string; image_url: string | null; count: string }>();
 
-          return rows.map(r => ({
-            id: r.id, 
+          return rows.map((r) => ({
+            id: r.id,
             name: r.name,
             count: Number(r.count) || 0,
             image_url: r.image_url ?? null,
@@ -497,7 +578,7 @@ export class DocumentsService {
             .addGroupBy('s.image_url')
             .getRawMany<{ id: string; name: string; image_url: string | null; count: string }>();
 
-          return rows.map(r => ({
+          return rows.map((r) => ({
             name: r.name,
             count: Number(r.count) || 0,
             image_url: r.image_url ?? null,
@@ -528,8 +609,8 @@ export class DocumentsService {
             .addGroupBy('f.image_url')
             .getRawMany<{ id: string; name: string; image_url: string | null; count: string }>();
 
-          return rows.map(r => ({
-            id: r.id, 
+          return rows.map((r) => ({
+            id: r.id,
             name: r.name,
             count: Number(r.count) || 0,
             image_url: r.image_url ?? null,
@@ -552,8 +633,8 @@ export class DocumentsService {
             .addGroupBy('f.image_url')
             .getRawMany<{ id: string; name: string; image_url: string | null; count: string }>();
 
-          return rows.map(r => ({
-            id: r.id, 
+          return rows.map((r) => ({
+            id: r.id,
             name: r.name,
             count: Number(r.count) || 0,
             image_url: r.image_url ?? null,
@@ -1159,6 +1240,7 @@ export class DocumentsService {
       take: 10,
     });
 
+    console.log(suggestedDocuments);
     if (!suggestedDocuments) {
       throw new NotFoundException('No documents found for suggestions');
     }
@@ -1229,6 +1311,7 @@ export class DocumentsService {
     facultyIds?: string[],
     subjectId?: string,
     documentTypeId?: string,
+    title?: string,
     description?: string,
     fileType: string = ''
   ): Promise<DocumentResponseDto> {
@@ -1257,7 +1340,7 @@ export class DocumentsService {
       ? await this.documentTypeRepo.findOneBy({ id: documentTypeId })
       : null;
     const doc = this.documentRepo.create({
-      title: file.originalname,
+      title: title || file.originalname,
       description: description || null,
       fileKey,
       thumbnailKey,
@@ -1376,7 +1459,7 @@ export class DocumentsService {
       .take(limit)
       .skip((page - 1) * limit)
       .getManyAndCount();
-
+    console.log('Total pending documents found:', total);
     const dtoData = await Promise.all(
       data.map(
         async (doc) =>

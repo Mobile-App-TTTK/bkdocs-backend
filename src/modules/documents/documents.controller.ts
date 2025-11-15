@@ -55,7 +55,7 @@ export class DocumentsController {
     private readonly logger: Logger
   ) {}
 
-  @Get('search')
+  @Get()
   @ApiOkResponse({ description: 'Search documents by keyword', type: [Object] })
   async search(@Query() q: SearchDocumentsDto, @Req() req): Promise<any[]> {
     const empty =
@@ -72,7 +72,7 @@ export class DocumentsController {
     return this.documentsService.search(q, (req as any).user.userId);
   }
 
-  @Get('suggest/keyword')
+  @Get('suggestion/keyword')
   @ApiQuery({ name: 'keyword', required: true })
   @ApiOkResponse({ description: 'Suggest Keyword', type: [String] })
   async suggest(@Query('keyword') keyword: string): Promise<string[]> {
@@ -82,7 +82,7 @@ export class DocumentsController {
     return this.documentsService.suggest(keyword);
   }
 
-  @Get('suggest/subject')
+  @Get('suggestion/subject')
   @ApiOkResponse({ type: [Subject] })
   async suggestSubject(@Req() req): Promise<Subject[]> {
     return this.documentsService.suggestSubjectsForUser((req as any).user.userId);
@@ -124,7 +124,7 @@ export class DocumentsController {
     return this.documentsService.getAllFacultiesSuggestions();
   }
 
-  @Post('upload')
+  @Post()
   @ApiOperation({ summary: 'Upload tài liệu lên' })
   @ApiResponseSwaggerWrapper(DocumentResponseDto, { status: 201 })
   @ApiErrorResponseSwaggerWrapper()
@@ -139,7 +139,8 @@ export class DocumentsController {
       {
         limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
         fileFilter: (req, file, cb) => {
-          const allowedMimeTypes = [
+          // Allowed document types
+          const allowedDocumentTypes = [
             'application/pdf',
             'application/msword',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -147,12 +148,26 @@ export class DocumentsController {
             'application/vnd.ms-powerpoint',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'application/vnd.ms-excel',
-            'image/jpeg',
-            'image/png',
-            'image/gif',
           ];
 
-          if (!allowedMimeTypes.includes(file.mimetype)) {
+          // Allowed image types - tất cả các loại ảnh phổ biến
+          const allowedImageTypes = [
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/gif',
+            'image/webp',
+            'image/svg+xml',
+            'image/bmp',
+            'image/tiff',
+            'image/x-icon',
+            'image/heic',
+            'image/heif',
+          ];
+
+          const allAllowedTypes = [...allowedDocumentTypes, ...allowedImageTypes];
+
+          if (!allAllowedTypes.includes(file.mimetype)) {
             return cb(
               new BadRequestException(`File loại ${file.mimetype} không được hỗ trợ`),
               false
@@ -177,6 +192,7 @@ export class DocumentsController {
         },
         subjectId: { type: 'string', example: 'c9b1d5f4-3e2a-4d5b-8f4d-1c2b3a4d5e6f' },
         documentTypeId: { type: 'string', example: '30d99ba0-4fb1-4b73-aa5a-fd570a746eb9' },
+        title: { type: 'string', example: 'Tài liệu về Giải Tích 1' },
         description: { type: 'string', example: 'Đây là tài liệu về Giải Tích 1' },
         thumbnailFile: { type: 'string', format: 'binary' },
         images: {
@@ -196,6 +212,7 @@ export class DocumentsController {
     @Body('facultyIds') facultyIds: string[],
     @Body('subjectId') subjectId: string,
     @Body('documentTypeId') documentTypeId: string,
+    @Body('title') title: string,
     @Body('description') description: string,
     @Req() req: any
   ): Promise<DocumentResponseDto> {
@@ -218,6 +235,7 @@ export class DocumentsController {
       normalizedFacultyIds,
       subjectId,
       documentTypeId,
+      title,
       description
     );
   }
