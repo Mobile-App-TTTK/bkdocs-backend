@@ -107,7 +107,7 @@ export class DocumentsController {
   @ApiResponseSwaggerWrapper(DocumentResponseDto)
   @ApiErrorResponseSwaggerWrapper()
   @Public()
-  @Get('suggestions')
+  @Get('suggestions/top-downloads')
   async getSuggestions(): Promise<DocumentResponseDto[]> {
     this.logger.log('Lấy gợi ý tài liệu cho người dùng không đăng nhập');
     return this.documentsService.getSuggestions();
@@ -119,7 +119,7 @@ export class DocumentsController {
   })
   @ApiOperation({ summary: 'Lấy 10 tài liệu mỗi khoa' })
   @ApiErrorResponseSwaggerWrapper()
-  @Get('/all-faculties/suggestions')
+  @Get('/faculties/suggestions')
   async getAllFacultiesSuggestions(): Promise<SuggestAllFacultiesDocumentsResponseDto[]> {
     return this.documentsService.getAllFacultiesSuggestions();
   }
@@ -243,7 +243,7 @@ export class DocumentsController {
   @ApiOperation({ summary: 'Lấy tất cả khoa, môn học và loại tài liệu (ID và tên)' })
   @ApiResponseSwaggerWrapper(Document)
   @ApiErrorResponseSwaggerWrapper()
-  @Get('faculties-subjects-documentTypes/all')
+  @Get('metadata')
   async getAllFacultiesAndSubjectsAndDocumentTypes(): Promise<AllFacultiesAndSubjectsAndDocumentTypesDto> {
     this.logger.log('Lấy tất cả khoa và môn học');
     return this.documentsService.getAllFacultiesAndSubjectsAndDocumentTypes();

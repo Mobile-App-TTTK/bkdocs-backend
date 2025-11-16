@@ -47,9 +47,22 @@ export class AdminController {
   }
 
   @ApiOperation({ summary: 'Duyệt tài liệu đang pending → active và gửi broadcast' })
-  @Patch('document:id/approval')
-  async approveDocument(@Param('id') docId: string) {
-    const document = await this.documentsService.updateDocumentStatus(docId, Status.ACTIVE);
+  @Patch('document/:id/status')
+  @ApiOkResponse({ description: 'Đã duyệt tài liệu thành công' })
+  @ApiErrorResponseSwaggerWrapper()
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: Object.values(Status), example: 'ACTIVE' },
+      },
+    },
+  })
+  async approveDocument(
+    @Param('id') docId: string,
+    @Body('status') status: Status
+  ): Promise<{ message: string }> {
+    const document = await this.documentsService.updateDocumentStatus(docId, status);
 
     return {
       message: `Đã duyệt tài liệu ${document.title}.`,

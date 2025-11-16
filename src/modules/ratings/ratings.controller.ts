@@ -1,9 +1,28 @@
 import {
-  BadRequestException, Body, Controller, Get, Param, Post, Query, Req, UseGuards, UploadedFile, UseInterceptors
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { RatesService } from './ratings.service';
-import { ApiTags, ApiOkResponse, ApiOperation, ApiQuery, ApiParam, ApiBody, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOkResponse,
+  ApiOperation,
+  ApiQuery,
+  ApiParam,
+  ApiBody,
+  ApiBearerAuth,
+  ApiConsumes,
+} from '@nestjs/swagger';
 import { ReviewItemDto } from './dtos/review-item.dto';
 import { ReviewScoreFilter } from './dtos/reviews.query.dto';
 import { CreateReviewDto } from './dtos/create-review.dto';
@@ -18,7 +37,7 @@ import { LimitedReviewItemDto } from './dtos/limited-review-item.dto';
 export class RatesController {
   constructor(private readonly ratesService: RatesService) {}
 
-  @Get('distribution')
+  @Get('statistics')
   @ApiOperation({ summary: 'Đánh giá và số lượng' })
   @ApiOkResponse({ description: 'List các cặp score và số lượng', type: [Object] })
   async getScoreCounts() {
@@ -29,7 +48,10 @@ export class RatesController {
   @ApiOperation({ summary: 'Get đánh giá và nhận xét' })
   @ApiOkResponse({ type: [ReviewItemDto] })
   @ApiQuery({ name: 'score', required: false, enum: ReviewScoreFilter })
-  async getAllDocument(@Param('id') id: string, @Query('score') score?: string): Promise<ReviewItemDto[]> {
+  async getAllDocument(
+    @Param('id') id: string,
+    @Query('score') score?: string
+  ): Promise<ReviewItemDto[]> {
     if (!id) throw new BadRequestException('documentId (param :id) is required');
     const parsed = score !== undefined ? Number(score) : undefined;
     if (parsed !== undefined && ![1, 2, 3, 4, 5].includes(parsed)) {
@@ -48,7 +70,11 @@ export class RatesController {
       properties: {
         score: { type: 'number', example: 5 },
         content: { type: 'string', example: 'Tài liệu rất hữu ích!' },
-        image: { type: 'string', format: 'binary', description: 'Ảnh đính kèm bình luận (tuỳ chọn)' },
+        image: {
+          type: 'string',
+          format: 'binary',
+          description: 'Ảnh đính kèm bình luận (tuỳ chọn)',
+        },
       },
       required: ['score', 'content'],
     },
@@ -60,20 +86,33 @@ export class RatesController {
     @UploadedFile() image: Express.Multer.File,
     @Req() req: any
   ): Promise<void> {
-    await this.ratesService.createOrUpdateRatingAndComment(documentId, (req as any).user.userId, dto, image);
+    await this.ratesService.createOrUpdateRatingAndComment(
+      documentId,
+      (req as any).user.userId,
+      dto,
+      image
+    );
   }
 
   @Get('document/:id/reviews/recent')
   @ApiOperation({ summary: 'Lấy k đánh giá+bình luận gần nhất của tài liệu' })
   @ApiParam({ name: 'id', description: 'ID tài liệu' })
-  @ApiQuery({ name: 'k', required: false, description: 'Số item cần lấy (mặc định 10, tối đa 100)' })
+  @ApiQuery({
+    name: 'k',
+    required: false,
+    description: 'Số item cần lấy (mặc định 10, tối đa 100)',
+  })
   @ApiQuery({ name: 'score', required: false, description: 'Lọc theo điểm 1..5' })
   @ApiOkResponse({ type: [LimitedReviewItemDto] })
-  async getTopKDocumentReviews(@Param('id') id: string, @Query('k') k?: string, @Query('score') score?: string,) : Promise<LimitedReviewItemDto[]> {
+  async getTopKDocumentReviews(
+    @Param('id') id: string,
+    @Query('k') k?: string,
+    @Query('score') score?: string
+  ): Promise<LimitedReviewItemDto[]> {
     if (!id) throw new BadRequestException('documentId is required');
 
     const limitRaw = Number.isFinite(Number(k)) ? Number(k) : 10;
-    const limit = Math.max(1, Math.min(100, limitRaw)); 
+    const limit = Math.max(1, Math.min(100, limitRaw));
 
     const scoreParsed = score !== undefined ? Number(score) : undefined;
     if (scoreParsed !== undefined && ![1, 2, 3, 4, 5].includes(scoreParsed)) {
