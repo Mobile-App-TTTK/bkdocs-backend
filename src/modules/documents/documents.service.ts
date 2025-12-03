@@ -68,7 +68,7 @@ type SubjectDocumentsResponse = {
   document_count: number;
   followers_count: number;
   imageUrl: string | null;
-  types: Array<{
+  typeList: Array<{
     name: string | null;
     documents: SlimDoc[];
   }>;
@@ -274,6 +274,7 @@ export class DocumentsService {
         .leftJoin('f.documents', 'd')
         .where('f.name ILIKE :kw', { kw })
         .orWhere('s.name ILIKE :kw', { kw })
+            .andWhere('d.status = :status', { status: Status.ACTIVE })
         .select([
           'f.id AS id',
           'f.name AS name',
@@ -301,6 +302,7 @@ export class DocumentsService {
         .leftJoin('s.documents', 'd')
         .where('s.name ILIKE :kw', { kw })
         .orWhere('d.title ILIKE :kw', { kw })
+            .andWhere('d.status = :status', { status: Status.ACTIVE })
         .select([
           's.id AS id',
           's.name AS name',
@@ -351,6 +353,7 @@ export class DocumentsService {
       const docRows = await this.documentRepo
         .createQueryBuilder('d')
         .leftJoin('d.uploader', 'up')
+        .andWhere('d.status = :status', { status: Status.ACTIVE })
         .where('up.id IN (:...ids)', { ids })
         .select('up.id', 'id')
         .addSelect('COUNT(d.id)', 'documentsCount')
@@ -438,6 +441,8 @@ export class DocumentsService {
           { kw: `%${keyword}%` }
         );
       }
+
+      qb.andWhere('d.status = :status', { status: Status.ACTIVE });
 
       qb.groupBy('d.id')
         .addGroupBy('d.title')
@@ -530,6 +535,7 @@ export class DocumentsService {
         const docRows = await this.documentRepo
           .createQueryBuilder('d')
           .leftJoin('d.uploader', 'up')
+          .andWhere('d.status = :status', { status: Status.ACTIVE })
           .where('up.id IN (:...ids)', { ids })
           .select('up.id', 'id')
           .addSelect('COUNT(d.id)', 'documentsCount')
@@ -588,6 +594,7 @@ export class DocumentsService {
             .leftJoin('s.documents', 'd')
             .where('s.name ILIKE :kw', { kw })
             .orWhere('d.title ILIKE :kw', { kw })
+            .andWhere('d.status = :status', { status: Status.ACTIVE })
             .select([
               's.id AS id',
               's.name AS name',
@@ -612,6 +619,7 @@ export class DocumentsService {
             .createQueryBuilder('s')
             .leftJoin('s.documents', 'd')
             .where('s.name ILIKE :sname', { sname: `%${subject}%` })
+            .andWhere('d.status = :status', { status: Status.ACTIVE })
             .select([
               's.id AS id',
               's.name AS name',
@@ -645,6 +653,7 @@ export class DocumentsService {
             .leftJoin('f.documents', 'd')
             .where('f.name ILIKE :kw', { kw })
             .orWhere('s.name ILIKE :kw', { kw })
+            .andWhere('d.status = :status', { status: Status.ACTIVE })
             .select([
               'f.id AS id',
               'f.name AS name',
@@ -669,6 +678,7 @@ export class DocumentsService {
             .createQueryBuilder('f')
             .leftJoin('f.documents', 'd')
             .where('f.name ILIKE :fname', { fname: `%${faculty}%` })
+            .andWhere('d.status = :status', { status: Status.ACTIVE })
             .select([
               'f.id AS id',
               'f.name AS name',
@@ -763,7 +773,7 @@ export class DocumentsService {
     const [docs, subs, facs, users] = await Promise.all([
       this.documentRepo.find({
         select: ['id', 'title'],
-        where: { title: ILike(`%${kw}%`) },
+        where: { title: ILike(`%${kw}%`), status: Status.ACTIVE },
         take: 5,
         order: { title: 'ASC' },
       }),
@@ -1107,7 +1117,9 @@ export class DocumentsService {
         'd.download_count AS d_download_count',
         'd.upload_date AS d_upload_date',
         'd.thumbnail_key AS d_thumbnail_key',
-        'dt.name AS type_name',
+        'subject.name AS subject_name',
+        'faculty.name AS faculty_name',
+        'dt.name AS type_name',          
         'AVG(rating.score) AS rating_score',
       ]);
 
@@ -1118,7 +1130,9 @@ export class DocumentsService {
       .addGroupBy('d.upload_date')
       .addGroupBy('d.thumbnail_key')
       .addGroupBy('d.file_key')
-      .addGroupBy('dt.name');
+      .addGroupBy('subject.name')
+      .addGroupBy('faculty.name')
+      .addGroupBy('dt.name');            
 
     const rows = await qb.getRawMany<{
       d_id: string;
@@ -1128,7 +1142,9 @@ export class DocumentsService {
       d_download_count: number;
       d_upload_date: Date;
       d_thumbnail_key: string | null;
-      type_name: string | null;
+      subject_name: string | null;
+      faculty_name: string | null;
+      type_name: string | null;         
       rating_score: string | number | null;
     }>();
 
@@ -1156,6 +1172,8 @@ export class DocumentsService {
           title: r.d_title,
           downloadCount: Number(r.d_download_count) || 0,
           uploadDate: r.d_upload_date,
+          subject: r.subject_name ? { name: r.subject_name } : null,
+          faculty: r.faculty_name ? { name: r.faculty_name } : null,
           thumbnail: downloadUrl,
           score: r.rating_score != null ? Number(r.rating_score) : null,
           type: fileType,
@@ -1172,7 +1190,7 @@ export class DocumentsService {
       typeMap[key].documents.push(rest as SlimDoc);
     }
 
-    const types = Object.values(typeMap);
+    const typeList = Object.values(typeMap);
 
     return {
       name: subjectEntity.name,
@@ -1180,7 +1198,7 @@ export class DocumentsService {
       followers_count: followersCount,
       imageUrl,
       isFollowingSubject,
-      types,
+      typeList,
     };
   }
 
@@ -1290,7 +1308,6 @@ export class DocumentsService {
       take: 10,
     });
 
-    console.log(suggestedDocuments);
     if (!suggestedDocuments) {
       throw new NotFoundException('No documents found for suggestions');
     }
@@ -1361,7 +1378,6 @@ export class DocumentsService {
     facultyIds?: string[],
     subjectId?: string,
     documentTypeId?: string,
-    title?: string,
     description?: string,
     fileType: string = ''
   ): Promise<DocumentResponseDto> {
@@ -1390,7 +1406,7 @@ export class DocumentsService {
       ? await this.documentTypeRepo.findOneBy({ id: documentTypeId })
       : null;
     const doc = this.documentRepo.create({
-      title: title || file.originalname,
+      title: file.originalname,
       description: description || null,
       fileKey,
       thumbnailKey,
@@ -1487,7 +1503,6 @@ export class DocumentsService {
       .leftJoinAndSelect('document.uploader', 'uploader')
       .leftJoinAndSelect('document.faculties', 'faculties')
       .leftJoinAndSelect('document.subject', 'subject')
-      .leftJoinAndSelect('document.documentType', 'documentType')
       .where('document.status = :status', { status: Status.PENDING });
 
     // Thêm full-text search nếu có keyword
@@ -1495,21 +1510,21 @@ export class DocumentsService {
       const searchTerm = `%${fullTextSearch.trim()}%`;
       queryBuilder.andWhere(
         new Brackets((qb) => {
-          qb.where(`unaccent(document.title) ILIKE unaccent(:searchTerm)`, { searchTerm })
-            .orWhere(`unaccent(document.description) ILIKE unaccent(:searchTerm)`, { searchTerm })
-            .orWhere(`unaccent(subject.name) ILIKE unaccent(:searchTerm)`, { searchTerm })
-            .orWhere(`unaccent(faculties.name) ILIKE unaccent(:searchTerm)`, { searchTerm })
-            .orWhere(`unaccent(documentType.name) ILIKE unaccent(:searchTerm)`, { searchTerm })
-            .orWhere(`unaccent(uploader.name) ILIKE unaccent(:searchTerm)`, { searchTerm });
+          qb.where('document.title ILIKE :searchTerm', { searchTerm })
+            .orWhere('document.description ILIKE :searchTerm', { searchTerm })
+            .orWhere('subject.name ILIKE :searchTerm', { searchTerm })
+            .orWhere('faculties.name ILIKE :searchTerm', { searchTerm })
+            .orWhere('uploader.name ILIKE :searchTerm', { searchTerm });
         })
       );
     }
+
     const [data, total] = await queryBuilder
       .orderBy('document.uploadDate', 'DESC')
       .take(limit)
       .skip((page - 1) * limit)
       .getManyAndCount();
-    console.log('Total pending documents found:', total);
+
     const dtoData = await Promise.all(
       data.map(
         async (doc) =>
@@ -1560,9 +1575,8 @@ export class DocumentsService {
     page: number
   ): Promise<DocumentResponseDto[]> {
     const documents = await this.documentRepo.find({
-      where: { uploader: { id: userId }, status: Status.ACTIVE },
+      where: { uploader: { id: userId } },
       relations: ['faculties', 'subject'],
-
       take: limit,
       skip: limit * (page - 1),
     });
@@ -1589,15 +1603,6 @@ export class DocumentsService {
                   false
                 )
               : undefined,
-            faculties: doc.faculties ? doc.faculties.map((f) => f.name) : undefined,
-            subject: doc.subject ? doc.subject.name : undefined,
-            downloadCount: doc.downloadCount,
-            fileType: doc.fileType || undefined,
-            documentType: doc.documentType ? doc.documentType.name : undefined,
-            overallRating:
-              doc.ratings && doc.ratings.length > 0
-                ? doc.ratings.reduce((sum, rating) => sum + rating.score, 0) / doc.ratings.length
-                : 0,
           })
       )
     );
