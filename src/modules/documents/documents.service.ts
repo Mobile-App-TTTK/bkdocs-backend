@@ -274,7 +274,7 @@ export class DocumentsService {
         .leftJoin('f.documents', 'd')
         .where('f.name ILIKE :kw', { kw })
         .orWhere('s.name ILIKE :kw', { kw })
-            .andWhere('d.status = :status', { status: Status.ACTIVE })
+        .andWhere('d.status = :status', { status: Status.ACTIVE })
         .select([
           'f.id AS id',
           'f.name AS name',
@@ -1128,7 +1128,7 @@ export class DocumentsService {
         'd.thumbnail_key AS d_thumbnail_key',
         'subject.name AS subject_name',
         'faculty.name AS faculty_name',
-        'dt.name AS type_name',          
+        'dt.name AS type_name',
         'AVG(rating.score) AS rating_score',
       ]);
 
@@ -1141,7 +1141,7 @@ export class DocumentsService {
       .addGroupBy('d.file_key')
       .addGroupBy('subject.name')
       .addGroupBy('faculty.name')
-      .addGroupBy('dt.name');            
+      .addGroupBy('dt.name');
 
     const rows = await qb.getRawMany<{
       d_id: string;
@@ -1153,7 +1153,7 @@ export class DocumentsService {
       d_thumbnail_key: string | null;
       subject_name: string | null;
       faculty_name: string | null;
-      type_name: string | null;         
+      type_name: string | null;
       rating_score: string | number | null;
     }>();
 
@@ -1565,7 +1565,7 @@ export class DocumentsService {
     page: number
   ): Promise<DocumentResponseDto[]> {
     const documents = await this.documentRepo.find({
-      where: { uploader: { id: userId } },
+      where: { uploader: { id: userId }, status: Status.ACTIVE },
       relations: ['faculties', 'subject'],
       take: limit,
       skip: limit * (page - 1),
