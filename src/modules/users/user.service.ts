@@ -17,6 +17,7 @@ import { Faculty } from '@modules/documents/entities/faculty.entity';
 import { DocumentsService } from '@modules/documents/documents.service';
 import { FollowedAndSubscribedListResponseDto } from './dtos/responses/followedAndSubscribedList.response.dto';
 import { UserRole } from '@common/enums/user-role.enum';
+import { Status } from '@common/enums/status.enum';
 
 @Injectable()
 export class UsersService {
@@ -171,18 +172,29 @@ export class UsersService {
   ): Promise<FollowedAndSubscribedListResponseDto[]> {
     const user = await this.usersRepo.findOne({
       where: { id: userId },
-      relations: ['subscribedSubjects', 'following', 'subscribedFaculties'],
+      relations: [
+        'subscribedSubjects',
+        'subscribedSubjects.documents',
+        'following',
+        'following.documents',
+        'following.followers',
+        'subscribedFaculties',
+        'subscribedFaculties.documents',
+      ],
     });
 
     if (!user) throw new NotFoundException('User not found');
+
     return [
       new FollowedAndSubscribedListResponseDto({
         followingUsers: await Promise.all(
           user.following.map(async (u) => ({
             id: u.id,
             name: u.name,
-            documentCount: u.documents ? u.documents.length : 0,
-            imageUrl: await this.s3Service.getPresignedDownloadUrl(u.imageKey),
+            documentCount: u.documents
+              ? u.documents.filter((doc) => doc.status === Status.ACTIVE).length
+              : 0,
+            imageUrl: u.imageKey ? await this.s3Service.getPresignedDownloadUrl(u.imageKey) : null,
             numberFollowers: u.followers ? u.followers.length : 0,
           }))
         ),

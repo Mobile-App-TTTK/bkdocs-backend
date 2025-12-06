@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class FollowedAndSubscribedListResponseDto {
   @ApiProperty()
-  followingUsers: { id: string; name: string; documentCount: number; imageUrl: string }[];
+  followingUsers: { id: string; name: string; documentCount: number; imageUrl: string | null }[];
 
   @ApiProperty()
   subscribedFacultyIds: { id: string; name: string; documentCount: number; imageUrl: string }[];
