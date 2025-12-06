@@ -183,6 +183,7 @@ export class UsersService {
             name: u.name,
             documentCount: u.documents ? u.documents.length : 0,
             imageUrl: await this.s3Service.getPresignedDownloadUrl(u.imageKey),
+            numberFollowers: u.followers ? u.followers.length : 0,
           }))
         ),
         subscribedFacultyIds: await Promise.all(
