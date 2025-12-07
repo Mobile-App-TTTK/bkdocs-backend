@@ -300,15 +300,18 @@ export class DocumentsService {
       const rows = await this.subjectRepo
         .createQueryBuilder('s')
         .leftJoin('s.documents', 'd')
-        .where('s.name ILIKE :kw', { kw })
-        .orWhere('d.title ILIKE :kw', { kw })
-        .andWhere('d.status = :status', { status: Status.ACTIVE })
+        .where(
+          new Brackets((b) => {
+            b.where('s.name ILIKE :kw', { kw }).orWhere('d.title ILIKE :kw', { kw });
+          })
+        )
         .select([
           's.id AS id',
           's.name AS name',
           's.image_url AS image_url',
-          'COUNT(d.id) AS count',
+          'COUNT(CASE WHEN d.status = :activeStatus THEN d.id END) AS count',
         ])
+        .setParameter('activeStatus', Status.ACTIVE)
         .groupBy('s.id')
         .addGroupBy('s.name')
         .addGroupBy('s.image_url')
@@ -353,8 +356,8 @@ export class DocumentsService {
       const docRows = await this.documentRepo
         .createQueryBuilder('d')
         .leftJoin('d.uploader', 'up')
-        .andWhere('d.status = :status', { status: Status.ACTIVE })
         .where('up.id IN (:...ids)', { ids })
+        .andWhere('d.status = :status', { status: Status.ACTIVE })
         .select('up.id', 'id')
         .addSelect('COUNT(d.id)', 'documentsCount')
         .groupBy('up.id')
@@ -535,8 +538,8 @@ export class DocumentsService {
         const docRows = await this.documentRepo
           .createQueryBuilder('d')
           .leftJoin('d.uploader', 'up')
-          .andWhere('d.status = :status', { status: Status.ACTIVE })
           .where('up.id IN (:...ids)', { ids })
+          .andWhere('d.status = :status', { status: Status.ACTIVE })
           .select('up.id', 'id')
           .addSelect('COUNT(d.id)', 'documentsCount')
           .groupBy('up.id')
@@ -592,15 +595,18 @@ export class DocumentsService {
           const rows = await this.subjectRepo
             .createQueryBuilder('s')
             .leftJoin('s.documents', 'd')
-            .where('s.name ILIKE :kw', { kw })
-            .orWhere('d.title ILIKE :kw', { kw })
-            .andWhere('d.status = :status', { status: Status.ACTIVE })
+            .where(
+              new Brackets((b) => {
+                b.where('s.name ILIKE :kw', { kw }).orWhere('d.title ILIKE :kw', { kw });
+              })
+            )
             .select([
               's.id AS id',
               's.name AS name',
               's.image_url AS image_url',
-              'COUNT(d.id) AS count',
+              'COUNT(CASE WHEN d.status = :activeStatus THEN d.id END) AS count',
             ])
+            .setParameter('activeStatus', Status.ACTIVE)
             .groupBy('s.id')
             .addGroupBy('s.name')
             .addGroupBy('s.image_url')
@@ -619,13 +625,13 @@ export class DocumentsService {
             .createQueryBuilder('s')
             .leftJoin('s.documents', 'd')
             .where('s.name ILIKE :sname', { sname: `%${subject}%` })
-            .andWhere('d.status = :status', { status: Status.ACTIVE })
             .select([
               's.id AS id',
               's.name AS name',
               's.image_url AS image_url',
-              'COUNT(d.id) AS count',
+              'COUNT(CASE WHEN d.status = :activeStatus THEN d.id END) AS count',
             ])
+            .setParameter('activeStatus', Status.ACTIVE)
             .groupBy('s.id')
             .addGroupBy('s.name')
             .addGroupBy('s.image_url')
@@ -651,15 +657,18 @@ export class DocumentsService {
             .leftJoin('f.curricula', 'fy')
             .leftJoin('fy.subject', 's')
             .leftJoin('f.documents', 'd')
-            .where('f.name ILIKE :kw', { kw })
-            .orWhere('s.name ILIKE :kw', { kw })
-            .andWhere('d.status = :status', { status: Status.ACTIVE })
+            .where(
+              new Brackets((b) => {
+                b.where('f.name ILIKE :kw', { kw }).orWhere('s.name ILIKE :kw', { kw });
+              })
+            )
             .select([
               'f.id AS id',
               'f.name AS name',
               'f.image_url AS image_url',
-              'COUNT(d.id) AS count',
+              'COUNT(CASE WHEN d.status = :activeStatus THEN d.id END) AS count',
             ])
+            .setParameter('activeStatus', Status.ACTIVE)
             .groupBy('f.id')
             .addGroupBy('f.name')
             .addGroupBy('f.image_url')
@@ -678,13 +687,13 @@ export class DocumentsService {
             .createQueryBuilder('f')
             .leftJoin('f.documents', 'd')
             .where('f.name ILIKE :fname', { fname: `%${faculty}%` })
-            .andWhere('d.status = :status', { status: Status.ACTIVE })
             .select([
               'f.id AS id',
               'f.name AS name',
               'f.image_url AS image_url',
-              'COUNT(d.id) AS count',
+              'COUNT(CASE WHEN d.status = :activeStatus THEN d.id END) AS count',
             ])
+            .setParameter('activeStatus', Status.ACTIVE)
             .groupBy('f.id')
             .addGroupBy('f.name')
             .addGroupBy('f.image_url')
@@ -1211,13 +1220,18 @@ export class DocumentsService {
         `[suggestSubjectsForUser] User ${userID} not found -> fallback random subjects`
       );
       const randomSubs = await this.pickRandomSubjects(4);
-      const withUrls = await this.attachSubjectUrls(randomSubs);
+      const withUrls = randomSubs.map((s) => {
+        (s as any).imageUrl = (s as any).imageUrl ?? null;
+        return s;
+      });
       const ids = withUrls.map((s) => s.id);
       if (ids.length === 0) return [];
+
       const counts = await this.subjectRepo
         .createQueryBuilder('s')
         .leftJoin('s.documents', 'd')
         .where('s.id IN (:...ids)', { ids })
+        .andWhere('d.status = :status', { status: Status.ACTIVE })
         .select(['s.id AS id', 'COUNT(d.id) AS count'])
         .groupBy('s.id')
         .getRawMany<{ id: string; count: string }>();
@@ -1231,7 +1245,7 @@ export class DocumentsService {
         id: s.id,
         name: s.name,
         count: countMap[s.id] || 0,
-        downloadUrl: (s as any).downloadUrl ?? null,
+        imageUrl: (s as any).imageUrl ?? null,
       }));
     }
 
@@ -1244,7 +1258,10 @@ export class DocumentsService {
     });
 
     const subjects = maps.map((m) => m.subject).filter(Boolean) as Subject[];
-    const withUrls = await this.attachSubjectUrls(subjects);
+    const withUrls = subjects.map((s) => {
+      (s as any).imageUrl = (s as any).imageUrl ?? null;
+      return s;
+    });
     const ids = withUrls.map((s) => s.id);
     if (ids.length === 0) return [];
 
@@ -1265,39 +1282,12 @@ export class DocumentsService {
       id: s.id,
       name: s.name,
       count: countMap[s.id] || 0,
-      downloadUrl: (s as any).downloadUrl ?? null,
+      imageUrl: (s as any).imageUrl ?? null,
     }));
   }
 
   private async pickRandomSubjects(n = 4): Promise<Subject[]> {
     return this.subjectRepo.createQueryBuilder('s').orderBy('RANDOM()').take(n).getMany();
-  }
-
-  private async attachSubjectUrls(
-    subjects: Subject[],
-    opts?: { download?: boolean; expiresInSeconds?: number }
-  ): Promise<Subject[]> {
-    const download = opts?.download ?? false;
-    const expiresInSeconds = opts?.expiresInSeconds ?? 3600;
-
-    const withUrls = await Promise.all(
-      subjects.map(async (s) => {
-        let url: string | null = null;
-        if ((s as any).fileKey) {
-          url = await this.s3Service.getPresignedDownloadUrl(
-            (s as any).fileKey,
-            s.name,
-            download,
-            expiresInSeconds
-          );
-        }
-
-        (s as any).downloadUrl = url;
-        return s;
-      })
-    );
-
-    return withUrls;
   }
 
   async getSuggestions(): Promise<DocumentResponseDto[]> {
