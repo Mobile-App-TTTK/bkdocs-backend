@@ -37,32 +37,32 @@ import { LimitedReviewItemDto } from './dtos/limited-review-item.dto';
 export class RatesController {
   constructor(private readonly ratesService: RatesService) {}
 
-  @Get('statistics')
-  @ApiOperation({ summary: 'Đánh giá và số lượng' })
-  @ApiOkResponse({ description: 'List các cặp score và số lượng', type: [Object] })
-  async getScoreCounts() {
-    return this.ratesService.getScoreCounts();
-  }
+	@Get('counts')
+	@ApiOperation({ summary: 'Đánh giá và số lượng' })
+	@ApiOkResponse({ description: 'List các cặp score và số lượng', type: [Object] })
+	async getScoreCounts() {
+		return this.ratesService.getScoreCounts();
+	}
 
-  @Get('document/:id/reviews')
-  @ApiOperation({ summary: 'Get đánh giá và nhận xét' })
-  @ApiOkResponse({ type: [ReviewItemDto] })
-  @ApiQuery({ name: 'score', required: false, enum: ReviewScoreFilter })
-  async getAllDocument(
-    @Param('id') id: string,
-    @Query('score') score?: string
-  ): Promise<ReviewItemDto[]> {
-    if (!id) throw new BadRequestException('documentId (param :id) is required');
-    const parsed = score !== undefined ? Number(score) : undefined;
-    if (parsed !== undefined && ![1, 2, 3, 4, 5].includes(parsed)) {
-      throw new BadRequestException('score must be one of 1,2,3,4,5');
+	@Get('document/:id/reviews')
+    @ApiOperation({ summary: 'Get đánh giá và nhận xét' })
+    @ApiOkResponse({ type: [ReviewItemDto] })
+    @ApiQuery({name: 'score', required: false, enum: ReviewScoreFilter})
+    async getAllDocument(@Param('id') id: string, @Query('score') score?: string) : Promise<ReviewItemDto[]> {
+        if (!id) throw new BadRequestException('documentId (param :id) is required');
+
+        const parsed = score !== undefined ? Number(score) : undefined;
+
+        if (parsed !== undefined && ![1, 2, 3, 4, 5].includes(parsed)) {
+            throw new BadRequestException('score must be one of 1,2,3,4,5');
+        }
+
+        return this.ratesService.getAllDocument({ documentId: id, score: parsed as any });
     }
-    return this.ratesService.getAllDocument({ documentId: id, score: parsed as any });
-  }
 
   @Post('document/:id/reviews')
   @ApiOperation({ summary: 'Tạo/cập nhật đánh giá và thêm nhận xét cho tài liệu (kèm ảnh)' })
-  @ApiParam({ name: 'documentId', description: 'ID tài liệu' })
+  @ApiParam({ name: 'id', description: 'ID tài liệu' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -81,7 +81,7 @@ export class RatesController {
   })
   @UseInterceptors(FileInterceptor('image'))
   async createReview(
-    @Param('documentId') documentId: string,
+    @Param('id') documentId: string,
     @Body() dto: CreateReviewDto,
     @UploadedFile() image: Express.Multer.File,
     @Req() req: any
