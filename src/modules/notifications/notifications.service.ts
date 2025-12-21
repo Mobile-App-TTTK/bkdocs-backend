@@ -10,7 +10,7 @@ import {
 import { Faculty } from '@modules/documents/entities/faculty.entity';
 import { Subject } from '@modules/documents/entities/subject.entity';
 import { NotificationType } from '@common/enums/notification-type.enum';
-import { NotificationsGateway } from './notifications.gateway';
+import { FirebaseService } from './firebase.service';
 @Injectable()
 export class NotificationsService {
   constructor(
@@ -22,7 +22,7 @@ export class NotificationsService {
     private readonly facultyRepo: Repository<Faculty>,
     @InjectRepository(Subject)
     private readonly subjectRepo: Repository<Subject>,
-    private readonly gateway: NotificationsGateway
+    private readonly firebaseService: FirebaseService
   ) {}
   async getUserNotifications(
     userId: string,
@@ -57,9 +57,14 @@ export class NotificationsService {
     documentId: string,
     facultyIds: string[] | undefined,
     subjectId: string | undefined,
-    docName: string
+    docName: string,
+    uploaderId?: string
   ) {
-    const query = await this.userRepository
+    // Set để tránh gửi duplicate notifications
+    const userIdsSet = new Set<string>();
+
+    // 1. Lấy users subscribe faculty/subject
+    const query = this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.subscribedFaculties', 'faculty')
       .leftJoinAndSelect('user.subscribedSubjects', 'subject');
@@ -73,25 +78,102 @@ export class NotificationsService {
       query.where('faculty.id IN (:...facultyIds)', { facultyIds });
     } else if (subjectId) {
       query.where('subject.id = :subjectId', { subjectId });
-    } else {
-      // không có facultyIds hay subjectId => không cần gửi ai cả
-      return;
     }
 
-    const users = await query.getMany();
+    const subscribedUsers = await query.getMany();
+    subscribedUsers.forEach((user) => userIdsSet.add(user.id));
 
-    users.map(async (user) => {
-      const notification = this.notificationRepository.create({
-        user,
-        message: `Tài liệu mới ${docName} vừa được upload`,
-        type: NotificationType.DOCUMENT,
-        targetId: documentId,
-        isRead: false,
-      });
-      const notificationSave = await this.notificationRepository.save(notification);
-      const notificationSend = new UserNotificationDto(notificationSave);
-      this.gateway.sendNotification(user.id, notificationSend);
-    });
+    // 2. Lấy users đã follow uploader (nếu có)
+    if (uploaderId) {
+      const followersQuery = this.userRepository
+        .createQueryBuilder('user')
+        .leftJoin('user.following', 'following')
+        .where('following.id = :uploaderId', { uploaderId });
+
+      const followers = await followersQuery.getMany();
+      followers.forEach((user) => userIdsSet.add(user.id));
+    }
+
+    // 3. Loại bỏ uploader khỏi danh sách (không gửi notification cho chính mình)
+    if (uploaderId) {
+      userIdsSet.delete(uploaderId);
+    }
+
+    // 4. Lấy full user objects
+    if (userIdsSet.size === 0) {
+      return; // Không có ai để gửi
+    }
+
+    const users = await this.userRepository.findByIds(Array.from(userIdsSet));
+
+    // 5. Lấy thông tin chi tiết về faculty, subject, uploader
+    const facultyNames: string[] = [];
+    if (facultyIds?.length) {
+      const faculties = await this.facultyRepo.findByIds(facultyIds);
+      facultyNames.push(...faculties.map((f) => f.name));
+    }
+
+    let subjectName: string | null = null;
+    if (subjectId) {
+      const subject = await this.subjectRepo.findOne({ where: { id: subjectId } });
+      subjectName = subject?.name || null;
+    }
+
+    let uploaderName: string | null = null;
+    if (uploaderId) {
+      const uploader = await this.userRepository.findOne({ where: { id: uploaderId } });
+      uploaderName = uploader?.name || null;
+    }
+
+    // 6. Tạo message chi tiết
+    const messageParts: string[] = [];
+
+    if (subjectName) {
+      messageParts.push(`[${subjectName}]`);
+    }
+    if (facultyNames.length > 0) {
+      messageParts.push(`[${facultyNames.join(', ')}]`);
+    }
+
+    messageParts.push(`Tài liệu mới: "${docName}"`);
+
+    if (uploaderName) {
+      messageParts.push(`- Đăng bởi ${uploaderName}`);
+    }
+
+    const fullMessage = messageParts.join(' ');
+    console.log('users to notify: ', users);
+
+    // 7. Gửi notifications
+    await Promise.all(
+      users.map(async (user) => {
+        const notification = this.notificationRepository.create({
+          user,
+          message: fullMessage,
+          type: NotificationType.DOCUMENT,
+          targetId: documentId,
+          isRead: false,
+        });
+        console.log('notification to save: ', notification);
+        const notificationSave = await this.notificationRepository.save(notification);
+
+        // Gửi push notification qua FCM với thông tin chi tiết
+        if (user.fcmToken) {
+          const pushTitle = subjectName ? `📚 ${subjectName}` : '📄 Tài liệu mới';
+          const pushBody = uploaderName ? `${docName} - Đăng bởi ${uploaderName}` : docName;
+
+          await this.firebaseService.sendToDevice(user.fcmToken, pushTitle, pushBody, {
+            type: NotificationType.DOCUMENT,
+            targetId: documentId,
+            notificationId: notificationSave.id,
+            documentName: docName,
+            subjectName: subjectName || '',
+            facultyNames: facultyNames.join(', '),
+            uploaderName: uploaderName || '',
+          });
+        }
+      })
+    );
   }
 
   async markAsRead(notificationId: string) {
@@ -178,5 +260,20 @@ export class NotificationsService {
     }
 
     return { message: 'Đã hủy theo dõi môn học thành công' };
+  }
+
+  /**
+   * Lưu FCM token cho user
+   */
+  async saveFcmToken(userId: string, fcmToken: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy người dùng');
+    }
+
+    user.fcmToken = fcmToken;
+    await this.userRepository.save(user);
+
+    return { message: 'Đã lưu FCM token thành công' };
   }
 }

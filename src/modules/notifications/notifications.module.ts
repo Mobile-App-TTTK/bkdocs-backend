@@ -6,11 +6,11 @@ import { Notification } from './entities/notification.entity';
 import { Faculty } from '@modules/documents/entities/faculty.entity';
 import { Subject } from '@modules/documents/entities/subject.entity';
 import { User } from '@modules/users/entities/user.entity';
-import { NotificationsGateway } from './notifications.gateway';
+import { FirebaseService } from './firebase.service';
 
 @Module({
   controllers: [NotificationsController],
-  providers: [NotificationsService, NotificationsGateway],
+  providers: [NotificationsService, FirebaseService],
   imports: [TypeOrmModule.forFeature([Notification, Faculty, Subject, User])],
   exports: [NotificationsService],
 })

@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 import { ApiErrorResponseSwaggerWrapper } from '@common/decorators/api-error-response-swagger-wapper.decorator';
 import { GetUserNotificationsResponseDto } from './dtos/response/getUserNotifications.response.dto';
 import { Notification } from './entities/notification.entity';
+import { SaveFcmTokenDto } from './dtos/save-fcm-token.dto';
 
 @ApiTags('notifications')
 @ApiBearerAuth('JWT-auth')
@@ -103,5 +104,12 @@ export class NotificationsController {
     if (!subjectId) throw new BadRequestException('Thiếu subjectId');
 
     return this.notificationsService.unsubscribeSubject(userId, subjectId);
+  }
+
+  @Post('fcm-token')
+  @ApiOperation({ summary: 'Lưu FCM token để nhận push notification' })
+  async saveFcmToken(@Req() req: any, @Body() body: SaveFcmTokenDto) {
+    const userId = req.user.userId;
+    return this.notificationsService.saveFcmToken(userId, body.fcmToken);
   }
 }

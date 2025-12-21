@@ -1427,7 +1427,8 @@ export class DocumentsService {
       documentId,
       facultyIds ? facultyIds : undefined,
       subjectId,
-      docName
+      docName,
+      userId // Thêm uploaderId
     );
     // 7️ Tạo link download tạm thời
     const downloadUrl = await this.s3Service.getPresignedDownloadUrl(fileKey);
@@ -1462,7 +1463,7 @@ export class DocumentsService {
   async updateDocumentStatus(id: string, status: string): Promise<Document> {
     const document = await this.documentRepo.findOne({
       where: { id },
-      relations: ['faculties', 'subject'],
+      relations: ['faculties', 'subject', 'uploader'],
     });
 
     console.log('document found:', document);
@@ -1476,7 +1477,8 @@ export class DocumentsService {
         document.id,
         document.faculties ? document.faculties.map((faculty) => faculty.id) : [],
         document.subject ? document.subject.id : undefined,
-        document.title
+        document.title,
+        document.uploader?.id // Thêm uploaderId
       );
     }
     console.log('Document status updated to ACTIVE');
