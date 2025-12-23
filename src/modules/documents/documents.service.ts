@@ -1258,10 +1258,22 @@ export class DocumentsService {
     });
 
     const subjects = maps.map((m) => m.subject).filter(Boolean) as Subject[];
-    const withUrls = subjects.map((s) => {
+    let withUrls = subjects.map((s) => {
       (s as any).imageUrl = (s as any).imageUrl ?? null;
       return s;
     });
+
+    if (withUrls.length < 4) {
+      const missing = 4 - withUrls.length;
+      const existingIds = withUrls.map((s) => s.id);
+      const extras = await this.pickRandomSubjects(missing, existingIds);
+      const extrasWithUrls = extras.map((s) => {
+        (s as any).imageUrl = (s as any).imageUrl ?? null;
+        return s;
+      });
+      withUrls = withUrls.concat(extrasWithUrls);
+    }
+
     const ids = withUrls.map((s) => s.id);
     if (ids.length === 0) return [];
 
@@ -1286,8 +1298,12 @@ export class DocumentsService {
     }));
   }
 
-  private async pickRandomSubjects(n = 4): Promise<Subject[]> {
-    return this.subjectRepo.createQueryBuilder('s').orderBy('RANDOM()').take(n).getMany();
+  private async pickRandomSubjects(n = 4, excludeIds: string[] = []): Promise<Subject[]> {
+    const qb = this.subjectRepo.createQueryBuilder('s');
+    if (excludeIds.length > 0) {
+      qb.where('s.id NOT IN (:...excludeIds)', { excludeIds });
+    }
+    return qb.orderBy('RANDOM()').take(n).getMany();
   }
 
   async getSuggestions(): Promise<DocumentResponseDto[]> {
