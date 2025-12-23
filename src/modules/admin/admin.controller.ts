@@ -38,8 +38,29 @@ import { Subject } from '@modules/documents/entities/subject.entity';
 export class AdminController {
   constructor(
     private readonly documentsService: DocumentsService,
-    private readonly userService: UsersService
+    private readonly userService: UsersService,
+    private readonly adminService: AdminService
   ) {}
+
+  @Get('statistics')
+  @ApiOperation({ summary: 'Lấy thống kê số lượng người dùng và tài liệu đang pending' })
+  @ApiOkResponse({
+    description: 'Thống kê hệ thống',
+    schema: {
+      type: 'object',
+      properties: {
+        totalUsers: { type: 'number', example: 987 },
+        pendingDocuments: { type: 'number', example: 200 },
+      },
+    },
+  })
+  @ApiErrorResponseSwaggerWrapper()
+  async getStatistics(): Promise<{
+    totalUsers: number;
+    pendingDocuments: number;
+  }> {
+    return this.adminService.getStatistics();
+  }
 
   @Get('users')
   async getAllUsers(): Promise<GetUserProfileResponseDto[]> {
