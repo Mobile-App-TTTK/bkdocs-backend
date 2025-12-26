@@ -19,6 +19,7 @@ import { Faculty } from '@modules/documents/entities/faculty.entity';
 import { Rating } from '@modules/ratings/entities/rating.entity';
 import { Comment } from '@modules/comments/entities/comment.entity';
 import { PasswordReset } from '@modules/auth/entities/password_resets.entity';
+import { BanStatus } from '../enums/ban-status.enum';
 
 @Entity('users')
 export class User {
@@ -97,4 +98,7 @@ export class User {
   @ManyToOne(() => Faculty, (faculty) => faculty.users)
   @JoinColumn({ name: 'faculty_id' })
   faculty: Faculty;
+
+  @Column({ name: 'ban_status', type: 'enum', enum: BanStatus, default: BanStatus.NONE })
+  banStatus: BanStatus;
 }

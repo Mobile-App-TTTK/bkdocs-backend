@@ -1484,7 +1484,11 @@ export class DocumentsService {
 
     console.log('document found:', document);
     if (!document) throw new NotFoundException('Không tìm thấy tài liệu');
-
+    if (status != Status.ACTIVE) {
+      document.status = Status.INACTIVE;
+      console.log('Document refused');
+      return await this.documentRepo.save(document);
+    }
     if (document.status === Status.ACTIVE)
       throw new BadRequestException('Tài liệu đã được duyệt trước đó');
     document.status = Status.ACTIVE;

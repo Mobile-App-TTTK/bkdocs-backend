@@ -1,4 +1,10 @@
-import { Injectable, UnauthorizedException, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '@modules/users/user.service';
 import { ConfigService } from '@nestjs/config';
@@ -8,6 +14,7 @@ import { PasswordReset } from './entities/password_resets.entity';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as crypto from 'crypto';
+import { BanStatus } from '@modules/users/enums/ban-status.enum';
 
 @Injectable()
 export class AuthService {
@@ -17,13 +24,13 @@ export class AuthService {
     private cfg: ConfigService,
     private mailer: MailerService,
     @InjectRepository(PasswordReset)
-    private prRepo: Repository<PasswordReset>,
+    private prRepo: Repository<PasswordReset>
   ) {
-    this.OTP_TTL_MIN       = this.getNum('OTP_TTL_MIN', 5);
-    this.TOKEN_TTL_MIN     = this.getNum('RESET_TOKEN_TTL_MIN', 15);
-    this.OTP_MAX_ATTEMPTS  = this.getNum('OTP_MAX_ATTEMPTS', 5);
-    this.OTP_COOLDOWN_SEC  = this.getNum('OTP_COOLDOWN_SEC', 120);
-    this.BCRYPT_ROUNDS     = this.getNum('BCRYPT_SALT_ROUNDS', 10);
+    this.OTP_TTL_MIN = this.getNum('OTP_TTL_MIN', 5);
+    this.TOKEN_TTL_MIN = this.getNum('RESET_TOKEN_TTL_MIN', 15);
+    this.OTP_MAX_ATTEMPTS = this.getNum('OTP_MAX_ATTEMPTS', 5);
+    this.OTP_COOLDOWN_SEC = this.getNum('OTP_COOLDOWN_SEC', 120);
+    this.BCRYPT_ROUNDS = this.getNum('BCRYPT_SALT_ROUNDS', 10);
   }
 
   private OTP_TTL_MIN!: number;
@@ -50,7 +57,9 @@ export class AuthService {
     if (rec?.lastOtpSentAt) {
       const diffSec = Math.floor((now.getTime() - rec.lastOtpSentAt.getTime()) / 1000);
       if (diffSec < this.OTP_COOLDOWN_SEC) {
-        throw new BadRequestException(`Please wait ${this.OTP_COOLDOWN_SEC - diffSec}s before requesting another OTP.`);
+        throw new BadRequestException(
+          `Please wait ${this.OTP_COOLDOWN_SEC - diffSec}s before requesting another OTP.`
+        );
       }
     }
 
@@ -119,7 +128,8 @@ export class AuthService {
 
   async login(email: string, password: string) {
     const user = await this.usersService.findByEmail(email);
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user || user.banStatus === BanStatus.BANNED)
+      throw new UnauthorizedException('Invalid credentials');
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) throw new UnauthorizedException('Invalid credentials');
@@ -148,7 +158,9 @@ export class AuthService {
     if (rec?.lastOtpSentAt) {
       const diffSec = Math.floor((now.getTime() - rec.lastOtpSentAt.getTime()) / 1000);
       if (diffSec < this.OTP_COOLDOWN_SEC) {
-        throw new BadRequestException(`Please wait ${this.OTP_COOLDOWN_SEC - diffSec}s before requesting another OTP.`);
+        throw new BadRequestException(
+          `Please wait ${this.OTP_COOLDOWN_SEC - diffSec}s before requesting another OTP.`
+        );
       }
     }
 
@@ -231,7 +243,8 @@ export class AuthService {
   }
 
   async changePassword(token: string, newPassword: string) {
-    const candidates = await this.prRepo.createQueryBuilder('pr')
+    const candidates = await this.prRepo
+      .createQueryBuilder('pr')
       .where('pr.token_hash IS NOT NULL')
       .andWhere('pr.token_expires_at > NOW()')
       .orderBy('pr.created_at', 'DESC')
@@ -239,14 +252,15 @@ export class AuthService {
 
     let matched: PasswordReset | null = null;
     for (const rec of candidates) {
-      if (rec.tokenHash && await bcrypt.compare(token, rec.tokenHash)) {
-        matched = rec; break;
+      if (rec.tokenHash && (await bcrypt.compare(token, rec.tokenHash))) {
+        matched = rec;
+        break;
       }
     }
 
     if (!matched) throw new ForbiddenException('Invalid or expired token');
 
-    const user = await this.usersService.findById((matched.userId as any));
+    const user = await this.usersService.findById(matched.userId as any);
     if (!user) throw new NotFoundException('User not found');
 
     const hash = await bcrypt.hash(newPassword, Number(process.env.BCRYPT_SALT_ROUNDS || 10));
