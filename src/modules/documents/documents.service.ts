@@ -123,10 +123,6 @@ export class DocumentsService {
       .getMany();
   }
 
-  /**
-   * Get recommended active documents based on user's subscribed subjects and faculties.
-   * Returns up to limit documents for AI chatbot recommendations.
-   */
   async getRecommendedActiveDocuments(
     subjectIds: string[],
     facultyIds: string[],
@@ -161,9 +157,6 @@ export class DocumentsService {
       .getMany();
   }
 
-  /**
-   * Get document by ID with full relations for AI chatbot.
-   */
   async getDocumentByIdWithRelations(documentId: string): Promise<Document | null> {
     return this.documentRepo.findOne({
       where: { id: documentId },
@@ -303,7 +296,7 @@ export class DocumentsService {
         .where(
           new Brackets((b) => {
             b.where('s.name ILIKE :kw', { kw }).orWhere('d.title ILIKE :kw', { kw });
-          })
+          }),
         )
         .select([
           's.id AS id',
@@ -325,7 +318,7 @@ export class DocumentsService {
       }));
     }
 
-    // ========== USER ONLY (image_url từ S3) ==========
+    // ========== USER ONLY ==========
     if (searchFor === 'user' && keyword) {
       const kw = `%${keyword}%`;
 
@@ -347,10 +340,10 @@ export class DocumentsService {
         FROM user_followers
         WHERE ${qi(targetCol)} = ANY($1)
         GROUP BY ${qi(targetCol)}`,
-        [ids]
+        [ids],
       );
       const followersCountMap = new Map<string, number>(
-        followerRows.map((r: any) => [r.id, Number(r.followersCount) || 0])
+        followerRows.map((r: any) => [r.id, Number(r.followersCount) || 0]),
       );
 
       const docRows = await this.documentRepo
@@ -363,7 +356,7 @@ export class DocumentsService {
         .groupBy('up.id')
         .getRawMany<{ id: string; documentsCount: string }>();
       const documentsCountMap = new Map<string, number>(
-        docRows.map((r) => [r.id, Number(r.documentsCount) || 0])
+        docRows.map((r) => [r.id, Number(r.documentsCount) || 0]),
       );
 
       let isFollowingSet = new Set<string>();
@@ -372,7 +365,7 @@ export class DocumentsService {
           `SELECT ${qi(targetCol)} AS id
           FROM user_followers
           WHERE ${qi(followerCol)} = $1 AND ${qi(targetCol)} = ANY($2)`,
-          [currentUserId, ids]
+          [currentUserId, ids],
         );
         isFollowingSet = new Set(followedRows.map((r: any) => r.id));
       }
@@ -385,7 +378,7 @@ export class DocumentsService {
               image_url = await this.s3Service.getPresignedDownloadUrl(
                 u.imageKey,
                 u.name || undefined,
-                false
+                false,
               );
             } catch {
               image_url = null;
@@ -400,20 +393,30 @@ export class DocumentsService {
             documentsCount: documentsCountMap.get(u.id) ?? 0,
             isFollowing: currentUserId ? isFollowingSet.has(u.id) : false,
           };
-        })
+        }),
       );
 
       return users;
     }
 
-    // ========== ALL: documents + users + subjects + faculties ==========
     if (searchFor === 'all') {
-      // ----- Documents -----
+      const ratingAvgSub = this.documentRepo
+        .createQueryBuilder('d2')
+        .select('d2.id', 'doc_id')
+        .addSelect('AVG(r.score)', 'rating_score')
+        .leftJoin('d2.ratings', 'r')
+        .groupBy('d2.id');
+
       const qb = this.documentRepo
         .createQueryBuilder('d')
         .leftJoin('d.subject', 'subject')
         .leftJoin('d.faculties', 'faculty')
-        .leftJoin('d.ratings', 'rating')
+        .leftJoin(
+          '(' + ratingAvgSub.getQuery() + ')',
+          'ra',
+          'ra.doc_id = d.id',
+        )
+        .setParameters(ratingAvgSub.getParameters())
         .select([
           'd.id AS d_id',
           'd.title AS d_title',
@@ -423,8 +426,12 @@ export class DocumentsService {
           'd.upload_date AS d_upload_date',
           'd.thumbnail_key AS d_thumbnail_key',
           'subject.name AS subject_name',
-          'faculty.name AS faculty_name',
-          'AVG(rating.score) AS rating_score',
+          `COALESCE(
+            json_agg(DISTINCT faculty.name) FILTER (WHERE faculty.id IS NOT NULL),
+            '[]'
+          ) AS faculty_names`,
+
+          'ra.rating_score AS rating_score',
         ]);
 
       if (faculty) {
@@ -441,7 +448,7 @@ export class DocumentsService {
               .orWhere(`split_part(d.thumbnail_key, '.', 1) ILIKE :kw`)
               .orWhere(`split_part(d.file_key, '.', 1) ILIKE :kw`);
           }),
-          { kw: `%${keyword}%` }
+          { kw: `%${keyword}%` },
         );
       }
 
@@ -455,7 +462,7 @@ export class DocumentsService {
         .addGroupBy('d.thumbnail_key')
         .addGroupBy('d.file_key')
         .addGroupBy('subject.name')
-        .addGroupBy('faculty.name');
+        .addGroupBy('ra.rating_score');
 
       const docsPromise = (async () => {
         const rows = await qb.getRawMany<{
@@ -467,27 +474,40 @@ export class DocumentsService {
           d_upload_date: Date;
           d_thumbnail_key: string | null;
           subject_name: string | null;
-          faculty_name: string | null;
+          faculty_names: any;
           rating_score: string | number | null;
         }>();
 
-        const result: SlimDoc[] = await Promise.all(
+        const result: any[] = await Promise.all(
           rows.map(async (r) => {
-            let downloadUrl: string | null = null;
+            let thumbUrl: string | null = null;
             if (r.d_thumbnail_key) {
               try {
-                downloadUrl = await this.s3Service.getPresignedDownloadUrl(
+                thumbUrl = await this.s3Service.getPresignedDownloadUrl(
                   r.d_thumbnail_key,
                   r.d_title || undefined,
-                  false
+                  false,
                 );
               } catch {
-                downloadUrl = null;
+                thumbUrl = null;
               }
             }
+
             const fileType = r.d_file_key
               ? (r.d_file_key.split('.').pop() || '').toLowerCase() || null
               : null;
+
+            let facultyNames: string[] = [];
+            if (Array.isArray(r.faculty_names)) {
+              facultyNames = r.faculty_names.filter(Boolean);
+            } else if (typeof r.faculty_names === 'string') {
+              try {
+                const parsed = JSON.parse(r.faculty_names);
+                if (Array.isArray(parsed)) facultyNames = parsed.filter(Boolean);
+              } catch {
+                facultyNames = [];
+              }
+            }
 
             return {
               id: r.d_id,
@@ -495,18 +515,19 @@ export class DocumentsService {
               downloadCount: Number(r.d_download_count) || 0,
               uploadDate: r.d_upload_date,
               subject: r.subject_name ? { name: r.subject_name } : null,
-              faculty: r.faculty_name ? { name: r.faculty_name } : null,
-              thumbnail: downloadUrl,
+
+              faculties: facultyNames.map((name) => ({ name })),
+
+              thumbnail: thumbUrl,
               score: r.rating_score != null ? Number(r.rating_score) : null,
               type: fileType,
-            } as SlimDoc;
-          })
+            };
+          }),
         );
 
         return result;
       })();
 
-      // ----- Users (image_url từ S3) -----
       const usersPromise = (async () => {
         if (!keyword) return [];
 
@@ -529,10 +550,10 @@ export class DocumentsService {
           FROM user_followers
           WHERE ${qi(targetCol)} = ANY($1)
           GROUP BY ${qi(targetCol)}`,
-          [ids]
+          [ids],
         );
         const followersCountMap = new Map<string, number>(
-          followerRows.map((r: any) => [r.id, Number(r.followersCount) || 0])
+          followerRows.map((r: any) => [r.id, Number(r.followersCount) || 0]),
         );
 
         const docRows = await this.documentRepo
@@ -545,7 +566,7 @@ export class DocumentsService {
           .groupBy('up.id')
           .getRawMany<{ id: string; documentsCount: string }>();
         const documentsCountMap = new Map<string, number>(
-          docRows.map((r) => [r.id, Number(r.documentsCount) || 0])
+          docRows.map((r) => [r.id, Number(r.documentsCount) || 0]),
         );
 
         let isFollowingSet = new Set<string>();
@@ -554,7 +575,7 @@ export class DocumentsService {
             `SELECT ${qi(targetCol)} AS id
             FROM user_followers
             WHERE ${qi(followerCol)} = $1 AND ${qi(targetCol)} = ANY($2)`,
-            [currentUserId, ids]
+            [currentUserId, ids],
           );
           isFollowingSet = new Set(followedRows.map((r: any) => r.id));
         }
@@ -567,7 +588,7 @@ export class DocumentsService {
                 image_url = await this.s3Service.getPresignedDownloadUrl(
                   u.imageKey,
                   u.name || undefined,
-                  false
+                  false,
                 );
               } catch {
                 image_url = null;
@@ -582,13 +603,12 @@ export class DocumentsService {
               documentsCount: documentsCountMap.get(u.id) ?? 0,
               isFollowing: currentUserId ? isFollowingSet.has(u.id) : false,
             };
-          })
+          }),
         );
 
         return users;
       })();
 
-      // ----- Subjects -----
       const subjectsPromise = (async () => {
         if (keyword) {
           const kw = `%${keyword}%`;
@@ -648,7 +668,6 @@ export class DocumentsService {
         return [];
       })();
 
-      // ----- Faculties -----
       const facultiesPromise = (async () => {
         if (keyword) {
           const kw = `%${keyword}%`;
@@ -741,14 +760,21 @@ export class DocumentsService {
   }
 
   filterDocuments(
-    docs: SlimDoc[],
-    opts?: { faculty?: string; type?: string; sort?: 'newest' | 'oldest' | 'downloadCount' }
-  ): SlimDoc[] {
+    docs: any[],
+    opts?: { faculty?: string; type?: string; sort?: 'newest' | 'oldest' | 'downloadCount' },
+  ): any[] {
     let results = Array.isArray(docs) ? docs.slice() : [];
 
     if (opts?.faculty) {
       const f = opts.faculty.toLowerCase();
-      results = results.filter((d) => (d.faculty?.name ?? '').toLowerCase().includes(f));
+
+      results = results.filter((d) =>
+        Array.isArray(d.faculties)
+          ? d.faculties.some((x: any) =>
+              ((x?.name ?? '') as string).toLowerCase().includes(f),
+            )
+          : false,
+      );
     }
 
     if (opts?.type) {
@@ -765,7 +791,7 @@ export class DocumentsService {
     }
 
     if (opts?.sort === 'downloadCount') {
-      results.sort((a, b) => b.downloadCount - a.downloadCount);
+      results.sort((a, b) => (b.downloadCount ?? 0) - (a.downloadCount ?? 0));
     } else if (opts?.sort === 'newest') {
       results.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
     } else if (opts?.sort === 'oldest') {
