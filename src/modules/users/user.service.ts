@@ -83,6 +83,7 @@ export class UsersService {
     return new GetUserProfileResponseDto({
       id: user.id,
       email: user.email,
+      role: user.role,
       name: user.name,
       imageUrl: imageUrl,
       faculty: user.faculty ? user.faculty.name : undefined,

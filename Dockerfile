@@ -32,7 +32,7 @@ RUN npm ci --only=production --legacy-peer-deps
 
 # Copy dist đã build từ stage 1
 COPY --from=builder /usr/src/app/dist ./dist
-
+COPY --from=builder /usr/src/app/public ./public
 # Expose port 8080 (match docker-compose)
 EXPOSE 8080
 

@@ -67,7 +67,7 @@ export class Document {
   /** Khoa mà tài liệu thuộc về */
   @ManyToMany(() => Faculty, (faculty) => faculty.documents, {
     nullable: true,
-    onDelete: 'SET NULL',
+    onDelete: 'CASCADE',
   })
   @JoinTable({ name: 'document_faculties' })
   faculties: Faculty[];

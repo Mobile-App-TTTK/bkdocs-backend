@@ -30,6 +30,8 @@ import { User } from '@modules/users/entities/user.entity';
 import { UsersService } from '@modules/users/user.service';
 import { GetUserProfileResponseDto } from '@modules/users/dtos/responses/getUserProfile.response.dto';
 import { Subject } from '@modules/documents/entities/subject.entity';
+import { AdminMemberDto } from './dtos/admin-member.dto';
+import { BanStatus } from '@modules/users/enums/ban-status.enum';
 @ApiTags('admin')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -38,8 +40,29 @@ import { Subject } from '@modules/documents/entities/subject.entity';
 export class AdminController {
   constructor(
     private readonly documentsService: DocumentsService,
-    private readonly userService: UsersService
+    private readonly userService: UsersService,
+    private readonly adminService: AdminService
   ) {}
+
+  @Get('statistics')
+  @ApiOperation({ summary: 'Lấy thống kê số lượng người dùng và tài liệu đang pending' })
+  @ApiOkResponse({
+    description: 'Thống kê hệ thống',
+    schema: {
+      type: 'object',
+      properties: {
+        totalUsers: { type: 'number', example: 987 },
+        pendingDocuments: { type: 'number', example: 200 },
+      },
+    },
+  })
+  @ApiErrorResponseSwaggerWrapper()
+  async getStatistics(): Promise<{
+    totalUsers: number;
+    pendingDocuments: number;
+  }> {
+    return this.adminService.getStatistics();
+  }
 
   @Get('users')
   async getAllUsers(): Promise<GetUserProfileResponseDto[]> {
@@ -54,18 +77,18 @@ export class AdminController {
     schema: {
       type: 'object',
       properties: {
-        status: { type: 'string', enum: Object.values(Status), example: 'ACTIVE' },
+        status: { type: 'string', enum: Object.values(Status), example: 'active' },
       },
     },
   })
-  async approveDocument(
+  async updateDocumentStatus(
     @Param('id') docId: string,
     @Body('status') status: Status
   ): Promise<{ message: string }> {
     const document = await this.documentsService.updateDocumentStatus(docId, status);
 
     return {
-      message: `Đã duyệt tài liệu ${document.title}.`,
+      message: `Đã cập nhật trạng thái tài liệu ${document.title} thành ${status}.`,
     };
   }
 
@@ -137,5 +160,49 @@ export class AdminController {
   @ApiOkResponse({ description: 'User verified', type: User })
   async toggleVerifyUser(@Param('userId') userId: string): Promise<User> {
     return this.userService.toggleVerifyUser(userId);
+  }
+
+  @Get('members')
+  @ApiOperation({ summary: 'Danh sách thành viên cho quản trị viên' })
+  @ApiOkResponse({ type: AdminMemberDto, isArray: true })
+  async getAdminMembers(): Promise<AdminMemberDto[]> {
+    // Truy vấn tối ưu, chỉ lấy các trường cần thiết
+    const users = await this.userService['usersRepo'].find({
+      relations: ['followers', 'documents'],
+      select: ['id', 'name'],
+    });
+
+    // Nếu có trường isBanned thì lấy, nếu không thì mặc định false
+    return users.map((user: any) => ({
+      id: user.id,
+      name: user.name,
+      isBanned: user.isBanned ?? false,
+      followerCount: user.followers?.length ?? 0,
+      uploadedDocumentsCount: user.documents?.length ?? 0,
+    }));
+  }
+
+  @Patch('members/:id/ban-status')
+  @ApiOperation({ summary: 'Cập nhật trạng thái ban tài khoản thành viên' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        banStatus: { type: 'string', enum: Object.values(BanStatus), example: BanStatus.BANNED },
+      },
+    },
+  })
+  @ApiOkResponse({ description: 'Cập nhật trạng thái ban thành công', type: User })
+  async updateBanStatus(@Param('id') userId: string, @Body('banStatus') banStatus: BanStatus) {
+    const user = await this.userService['usersRepo'].findOne({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+    user.banStatus = banStatus;
+    const updatedUser = await this.userService['usersRepo'].save(user);
+    // Hide sensitive information in the response
+    return {
+      id: updatedUser.id,
+      name: updatedUser.name,
+      banStatus: updatedUser.banStatus,
+    };
   }
 }
