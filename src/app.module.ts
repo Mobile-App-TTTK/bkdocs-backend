@@ -15,12 +15,18 @@ import { LoggerModule } from './modules/logger/logger.module';
 import { MulterModule } from '@nestjs/platform-express';
 import { AdminModule } from './modules/admin/admin.module';
 import { AiModule } from './modules/ai/ai.module';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true, // dùng ở mọi nơi không cần import lại
     }),
-
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'public'),
+      serveRoot: '/public',
+    }),
     // Type orm config
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
