@@ -68,7 +68,8 @@ export class UsersService {
   async findByIdWithFaculty(id: string) {
     return this.usersRepo.findOne({ where: { id }, relations: ['faculty'] });
   }
-  async getProfile(userId: string): Promise<GetUserProfileResponseDto> {
+
+  async getMyProfile(userId: string): Promise<GetUserProfileResponseDto> {
     const user = await this.usersRepo.findOne({
       where: { id: userId },
       relations: ['faculty', 'documents'],
@@ -79,7 +80,6 @@ export class UsersService {
     const imageUrl: string | undefined = user.imageKey
       ? await this.s3Service.getPresignedDownloadUrl(user.imageKey)
       : undefined;
-
     return new GetUserProfileResponseDto({
       id: user.id,
       email: user.email,
@@ -93,6 +93,44 @@ export class UsersService {
       participationDays: user.createdAt
         ? Math.floor((Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24))
         : 0,
+    });
+  }
+
+  async getProfile(userId: string, requesterId: string): Promise<GetUserProfileResponseDto> {
+    const user = await this.usersRepo.findOne({
+      where: { id: userId },
+      relations: ['faculty', 'documents'],
+    });
+    if (!user) throw new NotFoundException('User not found');
+    console.log('user: ', user);
+
+    const imageUrl: string | undefined = user.imageKey
+      ? await this.s3Service.getPresignedDownloadUrl(user.imageKey)
+      : undefined;
+    const isFollowed = requesterId
+      ? await this.dataSource
+          .getRepository(User)
+          .createQueryBuilder('user')
+          .leftJoin('user.following', 'following')
+          .where('user.id = :requesterId', { requesterId })
+          .andWhere('following.id = :userId', { userId })
+          .getCount()
+          .then((count) => count > 0)
+      : false;
+    return new GetUserProfileResponseDto({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      name: user.name,
+      imageUrl: imageUrl,
+      faculty: user.faculty ? user.faculty.name : undefined,
+      intakeYear: user.intakeYear ? user.intakeYear : undefined,
+      documentCount: user.documents ? user.documents.length : 0,
+      numberFollowers: user.followers ? user.followers.length : 0,
+      participationDays: user.createdAt
+        ? Math.floor((Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24))
+        : 0,
+      isFollowed,
     });
   }
 
@@ -121,7 +159,7 @@ export class UsersService {
     }
 
     const updated: User = await this.usersRepo.save(user);
-    console.log('user: ', user);
+    // console.log('user: ', user);
     const imageUrl: string | undefined = updated.imageKey
       ? await this.s3Service.getPresignedDownloadUrl(updated.imageKey)
       : undefined;
@@ -136,10 +174,10 @@ export class UsersService {
     });
   }
 
-  private async ensureUserExists(userId: string) {
-    const exists = await this.usersRepo.exist({ where: { id: userId } });
-    if (!exists) throw new NotFoundException(`User ${userId} not found`);
-  }
+  // private async ensureUserExists(userId: string) {
+  //   const exists = await this.usersRepo.exist({ where: { id: userId } });
+  //   if (!exists) throw new NotFoundException(`User ${userId} not found`);
+  // }
 
   async toggleFollowUser(followerId: string, userIdToFollow: string): Promise<void> {
     if (followerId === userIdToFollow) {

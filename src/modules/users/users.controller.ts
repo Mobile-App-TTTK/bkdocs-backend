@@ -55,7 +55,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Lấy thông tin người dùng hiện tại (kèm URL avatar từ S3)' })
   async getProfile(@Req() req: any): Promise<GetUserProfileResponseDto> {
     console.log('User ID from request:', req.user.userId);
-    return this.userService.getProfile(req.user.userId);
+    return this.userService.getMyProfile(req.user.userId);
   }
 
   @Patch('profile')
@@ -93,8 +93,12 @@ export class UsersController {
   @Get(':userId/profile')
   @ApiResponseSwaggerWrapper(GetUserProfileResponseDto)
   @ApiOperation({ summary: 'Lấy thông tin người dùng (kèm URL avatar từ S3)' })
-  async getUserProfile(@Param('userId') userId: string): Promise<GetUserProfileResponseDto> {
-    return this.userService.getProfile(userId);
+  async getUserProfile(
+    @Param('userId') userId: string,
+    @Req() req: any
+  ): Promise<GetUserProfileResponseDto> {
+    const id = req.user.userId;
+    return this.userService.getProfile(userId, id);
   }
 
   // Phân trang
