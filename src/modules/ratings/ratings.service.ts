@@ -75,6 +75,7 @@ export class RatesService {
         'r.score AS score',
         'lc.content AS comment',
         'lc.image_url AS "imageUrl"',
+        'lc.image_key AS "imageKey"',
         'r.created_at AS ratedAt',
       ])
       .andWhere('r.id IS NOT NULL')
@@ -89,16 +90,28 @@ export class RatesService {
       score: number;
       comment: string | null;
       imageUrl: string | null;
+      imageKey: string | null;
       ratedAt: Date;
     }>();
 
-    return rows.map((r) => ({
-      userName: r.userName,
-      score: Number(r.score),
-      comment: r.comment ?? null,
-      imageUrl: r.imageUrl ?? null,
-      ratedAt: r.ratedAt,
-    }));
+    const out = await Promise.all(
+      rows.map(async (r) => {
+        let finalImageUrl = "";
+        if (r.imageKey) {
+          finalImageUrl = await this.s3Service.getPresignedDownloadUrl(r.imageKey, 'comment-images', false);
+        }
+
+        return {
+          userName: r.userName,
+          score: Number(r.score),
+          comment: r.comment ?? null,
+          imageUrl: finalImageUrl,
+          ratedAt: r.ratedAt,
+        } as ReviewItemDto;
+      })
+    );
+
+    return out;
   }
 
   async createOrUpdateRatingAndComment(
