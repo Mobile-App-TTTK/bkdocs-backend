@@ -1,11 +1,14 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
+  NotFoundException,
   Param,
   Patch,
   Post,
   Query,
+  Req,
   UploadedFile,
   UseGuards,
 } from '@nestjs/common';
@@ -166,20 +169,7 @@ export class AdminController {
   @ApiOperation({ summary: 'Danh sách thành viên cho quản trị viên' })
   @ApiOkResponse({ type: AdminMemberDto, isArray: true })
   async getAdminMembers(): Promise<AdminMemberDto[]> {
-    // Truy vấn tối ưu, chỉ lấy các trường cần thiết
-    const users = await this.userService['usersRepo'].find({
-      relations: ['followers', 'documents'],
-      select: ['id', 'name'],
-    });
-
-    // Nếu có trường isBanned thì lấy, nếu không thì mặc định false
-    return users.map((user: any) => ({
-      id: user.id,
-      name: user.name,
-      isBanned: user.isBanned ?? false,
-      followerCount: user.followers?.length ?? 0,
-      uploadedDocumentsCount: user.documents?.length ?? 0,
-    }));
+    return this.adminService.getAdminMembers();
   }
 
   @Patch('members/:id/ban-status')
@@ -190,19 +180,27 @@ export class AdminController {
       properties: {
         banStatus: { type: 'string', enum: Object.values(BanStatus), example: BanStatus.BANNED },
       },
+      required: ['banStatus'],
     },
   })
-  @ApiOkResponse({ description: 'Cập nhật trạng thái ban thành công', type: User })
-  async updateBanStatus(@Param('id') userId: string, @Body('banStatus') banStatus: BanStatus) {
-    const user = await this.userService['usersRepo'].findOne({ where: { id: userId } });
-    if (!user) throw new Error('User not found');
-    user.banStatus = banStatus;
-    const updatedUser = await this.userService['usersRepo'].save(user);
-    // Hide sensitive information in the response
-    return {
-      id: updatedUser.id,
-      name: updatedUser.name,
-      banStatus: updatedUser.banStatus,
-    };
+  @ApiOkResponse({
+    description: 'Cập nhật trạng thái ban thành công',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', example: 'user-id-123' },
+        name: { type: 'string', example: 'Nguyễn Văn A' },
+        banStatus: { type: 'string', enum: Object.values(BanStatus), example: BanStatus.BANNED },
+      },
+    },
+  })
+  @ApiErrorResponseSwaggerWrapper()
+  async updateBanStatus(
+    @Req() req: any,
+    @Param('id') userId: string,
+    @Body('banStatus') banStatus: BanStatus
+  ): Promise<{ id: string; name: string; banStatus: BanStatus }> {
+    const currentUserId = req.user.userId;
+    return this.adminService.updateUserBanStatus(currentUserId, userId, banStatus);
   }
 }

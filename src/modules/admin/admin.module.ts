@@ -6,6 +6,7 @@ import { DocumentsModule } from '@modules/documents/documents.module';
 import { UsersModule } from '@modules/users/user.module';
 import { User } from '@modules/users/entities/user.entity';
 import { Document } from '@modules/documents/entities/document.entity';
+import { S3Module } from '@modules/s3/s3.module';
 
 @Module({
   controllers: [AdminController],
@@ -14,6 +15,8 @@ import { Document } from '@modules/documents/entities/document.entity';
     TypeOrmModule.forFeature([User, Document]),
     DocumentsModule,
     UsersModule,
+    S3Module,
   ],
 })
 export class AdminModule {}
+
