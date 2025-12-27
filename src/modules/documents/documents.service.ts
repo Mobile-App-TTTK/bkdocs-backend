@@ -1628,6 +1628,7 @@ export class DocumentsService {
                 )
               : undefined,
             fileType: doc.fileType || undefined,
+            subject: doc.subject ? doc.subject.name : null,
             overallRating: doc.ratings
               ? doc.ratings.length > 0
                 ? doc.ratings.reduce((sum, rating) => sum + rating.score, 0) / doc.ratings.length
