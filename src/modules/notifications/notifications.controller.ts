@@ -112,4 +112,21 @@ export class NotificationsController {
     const userId = req.user.userId;
     return this.notificationsService.saveFcmToken(userId, body.fcmToken);
   }
+
+  @Post('test')
+  @ApiOperation({ summary: 'Tạo thông báo test để kiểm tra hệ thống (Dev only)' })
+  @ApiQuery({
+    name: 'count',
+    required: false,
+    example: 20,
+    description: 'Số lượng thông báo test cần tạo (mặc định = 20)',
+  })
+  async testCreateNotifications(
+    @Req() req: any,
+    @Query('count') count?: number
+  ): Promise<{ message: string; created: number; fcmSent: number }> {
+    const userId = req.user.userId;
+    const notificationCount = count ? parseInt(count.toString(), 10) : 20;
+    return this.notificationsService.testCreateNotifications(userId, notificationCount);
+  }
 }

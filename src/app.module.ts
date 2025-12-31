@@ -27,6 +27,15 @@ import { join } from 'path';
       rootPath: join(process.cwd(), 'public'),
       serveRoot: '/public',
     }),
+    // Serve firebase-messaging-sw.js từ root để Firebase SDK tìm thấy
+    ServeStaticModule.forRoot({
+      rootPath: process.cwd(),
+      serveRoot: '/',
+      exclude: ['/api*', '/public*'], // Không conflict với các routes khác
+      serveStaticOptions: {
+        index: false,
+      },
+    }),
     // Type orm config
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],

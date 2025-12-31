@@ -176,6 +176,66 @@ export class NotificationsService {
     );
   }
 
+  /**
+   * Gửi notification cho uploader khi document được approve
+   */
+  async sendDocumentApprovedNotification(
+    documentId: string,
+    uploaderId: string,
+    docName: string,
+    facultyNames?: string[],
+    subjectName?: string
+  ) {
+    const uploader = await this.userRepository.findOne({ where: { id: uploaderId } });
+    if (!uploader) {
+      console.warn(`Uploader ${uploaderId} not found`);
+      return;
+    }
+
+    // Tạo message
+    const messageParts: string[] = ['✅ Tài liệu của bạn đã được duyệt:'];
+    
+    if (subjectName) {
+      messageParts.push(`[${subjectName}]`);
+    }
+    if (facultyNames?.length) {
+      messageParts.push(`[${facultyNames.join(', ')}]`);
+    }
+    
+    messageParts.push(`"${docName}"`);
+
+    const fullMessage = messageParts.join(' ');
+
+    // Lưu notification
+    const notification = this.notificationRepository.create({
+      user: uploader,
+      message: fullMessage,
+      type: NotificationType.DOCUMENT_APPROVED,
+      targetId: documentId,
+      isRead: false,
+    });
+
+    const savedNotification = await this.notificationRepository.save(notification);
+    console.log(`✅ Sent approval notification to uploader ${uploader.email}`);
+
+    // Gửi FCM nếu có token
+    if (uploader.fcmToken) {
+      const pushTitle = '✅ Tài liệu đã được duyệt';
+      const pushBody = subjectName 
+        ? `${docName} - ${subjectName}` 
+        : docName;
+
+      await this.firebaseService.sendToDevice(uploader.fcmToken, pushTitle, pushBody, {
+        type: NotificationType.DOCUMENT_APPROVED,
+        targetId: documentId,
+        notificationId: savedNotification.id,
+        documentName: docName,
+        subjectName: subjectName || '',
+        facultyNames: facultyNames?.join(', ') || '',
+      });
+    }
+  }
+
   async markAsRead(notificationId: string) {
     const notification: Notification | null = await this.notificationRepository.findOne({
       where: { id: notificationId },
@@ -275,5 +335,128 @@ export class NotificationsService {
     await this.userRepository.save(user);
 
     return { message: 'Đã lưu FCM token thành công' };
+  }
+
+  /**
+   * Hàm test để tạo nhiều thông báo mẫu cho một user
+   * Dùng để test UI và chức năng notification
+   * Tự động gửi FCM push notification nếu user có fcmToken
+   */
+  async testCreateNotifications(userId: string, count: number = 20): Promise<{ message: string; created: number; fcmSent: number }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy người dùng');
+    }
+
+    const notificationTypes = [NotificationType.DOCUMENT, NotificationType.COMMENT, NotificationType.PROFILE];
+    
+    const testMessages = {
+      [NotificationType.DOCUMENT]: [
+        '[Công nghệ phần mềm] Tài liệu mới: "Bài giảng OOP - Lập trình hướng đối tượng" - Đăng bởi Nguyễn Văn A',
+        '[Toán cao cấp] Tài liệu mới: "Giải tích 1 - Chương 3: Tích phân" - Đăng bởi Trần Thị B',
+        '[Cơ sở dữ liệu] Tài liệu mới: "Database Design - ERD và Normalization" - Đăng bởi Lê Văn C',
+        '[Mạng máy tính] Tài liệu mới: "Giao thức TCP/IP và OSI Model" - Đăng bởi Phạm Thị D',
+        '[Trí tuệ nhân tạo] Tài liệu mới: "Machine Learning cơ bản" - Đăng bởi Hoàng Văn E',
+        '[Lập trình Web] Tài liệu mới: "React Hooks và State Management" - Đăng bởi Vũ Thị F',
+        '[Hệ điều hành] Tài liệu mới: "Process và Thread trong Linux" - Đăng bởi Đặng Văn G',
+      ],
+      [NotificationType.COMMENT]: [
+        'Nguyễn Văn A đã bình luận về tài liệu "Lập trình C++ nâng cao" của bạn',
+        'Trần Thị B đã trả lời bình luận của bạn trong "Giải tích 2"',
+        'Lê Văn C đã thích bình luận của bạn',
+        'Phạm Thị D đã nhắc đến bạn trong một bình luận',
+        'Hoàng Văn E đã bình luận: "Tài liệu rất hữu ích, cảm ơn bạn!"',
+      ],
+      [NotificationType.PROFILE]: [
+        'Nguyễn Văn A đã bắt đầu theo dõi bạn',
+        'Trần Thị B và 5 người khác đã theo dõi bạn',
+        'Tài liệu của bạn đã đạt 100 lượt tải xuống!',
+        'Bạn đã nhận được 10 điểm đánh giá 5 sao',
+        'Chúc mừng! Bạn đã trở thành thành viên nổi bật trong tuần',
+      ],
+    };
+
+    // Titles cho FCM notification theo loại
+    const fcmTitles = {
+      [NotificationType.DOCUMENT]: '📚 Tài liệu mới',
+      [NotificationType.COMMENT]: '💬 Bình luận mới',
+      [NotificationType.PROFILE]: '👤 Thông báo cá nhân',
+    };
+
+    const notifications: Notification[] = [];
+    let fcmSentCount = 0;
+    
+    for (let i = 0; i < count; i++) {
+      // Chọn ngẫu nhiên loại notification
+      const type = notificationTypes[Math.floor(Math.random() * notificationTypes.length)];
+      
+      // Chọn ngẫu nhiên message từ danh sách tương ứng
+      const messages = testMessages[type];
+      const message = messages[Math.floor(Math.random() * messages.length)];
+      
+      // Tạo targetId giả (UUID ngẫu nhiên)
+      const targetId = `test-${type}-${Date.now()}-${i}`;
+      
+      // Random isRead status (70% chưa đọc, 30% đã đọc)
+      const isRead = Math.random() > 0.7;
+      
+      const notification = this.notificationRepository.create({
+        user,
+        message,
+        type,
+        targetId,
+        isRead,
+      });
+      
+      notifications.push(notification);
+    }
+
+    // Lưu tất cả notifications vào database
+    const savedNotifications = await this.notificationRepository.save(notifications);
+
+    // Gửi FCM push notification cho từng thông báo nếu user có fcmToken
+    if (user.fcmToken) {
+      console.log(`🔔 Bắt đầu gửi ${savedNotifications.length} FCM notifications...`);
+      
+      for (const notification of savedNotifications) {
+        try {
+          // Tạo title và body cho FCM
+          const fcmTitle = fcmTitles[notification.type as NotificationType] || '🔔 Thông báo mới';
+          const fcmBody = notification.message;
+
+          // Gửi FCM notification
+          const success = await this.firebaseService.sendToDevice(
+            user.fcmToken,
+            fcmTitle,
+            fcmBody,
+            {
+              type: notification.type,
+              targetId: notification.targetId,
+              notificationId: notification.id,
+              isTest: 'true', // Đánh dấu đây là notification test
+            }
+          );
+
+          if (success) {
+            fcmSentCount++;
+          }
+
+          // Delay nhỏ giữa các lần gửi để tránh spam (100ms)
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (error) {
+          console.error(`❌ Lỗi khi gửi FCM cho notification ${notification.id}:`, error.message);
+        }
+      }
+
+      console.log(`✅ Đã gửi thành công ${fcmSentCount}/${savedNotifications.length} FCM notifications`);
+    } else {
+      console.log('⚠️ User không có FCM token, bỏ qua việc gửi push notifications');
+    }
+
+    return { 
+      message: `Đã tạo thành công ${count} thông báo test cho user ${user.name || user.email}${user.fcmToken ? ` và gửi ${fcmSentCount} FCM notifications` : ''}`,
+      created: notifications.length,
+      fcmSent: fcmSentCount
+    };
   }
 }

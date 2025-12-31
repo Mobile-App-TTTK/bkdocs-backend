@@ -1512,15 +1512,29 @@ export class DocumentsService {
     if (document.status === Status.ACTIVE)
       throw new BadRequestException('Tài liệu đã được duyệt trước đó');
     document.status = Status.ACTIVE;
+    
+    // Gửi notification cho subscribers (người theo dõi môn/khoa)
     if (document.faculties || document.subject) {
       await this.notificationsService.sendNewDocumentNotification(
         document.id,
         document.faculties ? document.faculties.map((faculty) => faculty.id) : [],
         document.subject ? document.subject.id : undefined,
         document.title,
-        document.uploader?.id // Thêm uploaderId
+        document.uploader?.id // uploaderId sẽ bị loại khỏi danh sách subscribers
       );
     }
+    
+    // Gửi notification riêng cho uploader (tài liệu đã được duyệt)
+    if (document.uploader?.id) {
+      await this.notificationsService.sendDocumentApprovedNotification(
+        document.id,
+        document.uploader.id,
+        document.title,
+        document.faculties ? document.faculties.map((f) => f.name) : undefined,
+        document.subject?.name
+      );
+    }
+    
     console.log('Document status updated to ACTIVE');
     return await this.documentRepo.save(document);
   }
