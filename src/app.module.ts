@@ -23,15 +23,20 @@ import { join } from 'path';
     ConfigModule.forRoot({
       isGlobal: true, // dùng ở mọi nơi không cần import lại
     }),
+    // Serve public files (HTML, JS) từ root
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'public'),
-      serveRoot: '/public',
+      serveRoot: '/',
+      exclude: ['/api*'], // Không conflict với API routes
+      serveStaticOptions: {
+        index: false,
+      },
     }),
-    // Serve firebase-messaging-sw.js từ root để Firebase SDK tìm thấy
+    // Serve firebase-messaging-sw.js từ root directory
     ServeStaticModule.forRoot({
       rootPath: process.cwd(),
       serveRoot: '/',
-      exclude: ['/api*', '/public*'], // Không conflict với các routes khác
+      exclude: ['/api*'],
       serveStaticOptions: {
         index: false,
       },
