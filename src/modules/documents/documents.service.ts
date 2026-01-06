@@ -296,7 +296,7 @@ export class DocumentsService {
         .where(
           new Brackets((b) => {
             b.where('s.name ILIKE :kw', { kw }).orWhere('d.title ILIKE :kw', { kw });
-          }),
+          })
         )
         .select([
           's.id AS id',
@@ -340,10 +340,10 @@ export class DocumentsService {
         FROM user_followers
         WHERE ${qi(targetCol)} = ANY($1)
         GROUP BY ${qi(targetCol)}`,
-        [ids],
+        [ids]
       );
       const followersCountMap = new Map<string, number>(
-        followerRows.map((r: any) => [r.id, Number(r.followersCount) || 0]),
+        followerRows.map((r: any) => [r.id, Number(r.followersCount) || 0])
       );
 
       const docRows = await this.documentRepo
@@ -356,7 +356,7 @@ export class DocumentsService {
         .groupBy('up.id')
         .getRawMany<{ id: string; documentsCount: string }>();
       const documentsCountMap = new Map<string, number>(
-        docRows.map((r) => [r.id, Number(r.documentsCount) || 0]),
+        docRows.map((r) => [r.id, Number(r.documentsCount) || 0])
       );
 
       let isFollowingSet = new Set<string>();
@@ -365,7 +365,7 @@ export class DocumentsService {
           `SELECT ${qi(targetCol)} AS id
           FROM user_followers
           WHERE ${qi(followerCol)} = $1 AND ${qi(targetCol)} = ANY($2)`,
-          [currentUserId, ids],
+          [currentUserId, ids]
         );
         isFollowingSet = new Set(followedRows.map((r: any) => r.id));
       }
@@ -378,7 +378,7 @@ export class DocumentsService {
               image_url = await this.s3Service.getPresignedDownloadUrl(
                 u.imageKey,
                 u.name || undefined,
-                false,
+                false
               );
             } catch {
               image_url = null;
@@ -393,7 +393,7 @@ export class DocumentsService {
             documentsCount: documentsCountMap.get(u.id) ?? 0,
             isFollowing: currentUserId ? isFollowingSet.has(u.id) : false,
           };
-        }),
+        })
       );
 
       return users;
@@ -411,11 +411,7 @@ export class DocumentsService {
         .createQueryBuilder('d')
         .leftJoin('d.subject', 'subject')
         .leftJoin('d.faculties', 'faculty')
-        .leftJoin(
-          '(' + ratingAvgSub.getQuery() + ')',
-          'ra',
-          'ra.doc_id = d.id',
-        )
+        .leftJoin('(' + ratingAvgSub.getQuery() + ')', 'ra', 'ra.doc_id = d.id')
         .setParameters(ratingAvgSub.getParameters())
         .select([
           'd.id AS d_id',
@@ -448,7 +444,7 @@ export class DocumentsService {
               .orWhere(`split_part(d.thumbnail_key, '.', 1) ILIKE :kw`)
               .orWhere(`split_part(d.file_key, '.', 1) ILIKE :kw`);
           }),
-          { kw: `%${keyword}%` },
+          { kw: `%${keyword}%` }
         );
       }
 
@@ -486,7 +482,7 @@ export class DocumentsService {
                 thumbUrl = await this.s3Service.getPresignedDownloadUrl(
                   r.d_thumbnail_key,
                   r.d_title || undefined,
-                  false,
+                  false
                 );
               } catch {
                 thumbUrl = null;
@@ -522,7 +518,7 @@ export class DocumentsService {
               score: r.rating_score != null ? Number(r.rating_score) : null,
               type: fileType,
             };
-          }),
+          })
         );
 
         return result;
@@ -550,10 +546,10 @@ export class DocumentsService {
           FROM user_followers
           WHERE ${qi(targetCol)} = ANY($1)
           GROUP BY ${qi(targetCol)}`,
-          [ids],
+          [ids]
         );
         const followersCountMap = new Map<string, number>(
-          followerRows.map((r: any) => [r.id, Number(r.followersCount) || 0]),
+          followerRows.map((r: any) => [r.id, Number(r.followersCount) || 0])
         );
 
         const docRows = await this.documentRepo
@@ -566,7 +562,7 @@ export class DocumentsService {
           .groupBy('up.id')
           .getRawMany<{ id: string; documentsCount: string }>();
         const documentsCountMap = new Map<string, number>(
-          docRows.map((r) => [r.id, Number(r.documentsCount) || 0]),
+          docRows.map((r) => [r.id, Number(r.documentsCount) || 0])
         );
 
         let isFollowingSet = new Set<string>();
@@ -575,7 +571,7 @@ export class DocumentsService {
             `SELECT ${qi(targetCol)} AS id
             FROM user_followers
             WHERE ${qi(followerCol)} = $1 AND ${qi(targetCol)} = ANY($2)`,
-            [currentUserId, ids],
+            [currentUserId, ids]
           );
           isFollowingSet = new Set(followedRows.map((r: any) => r.id));
         }
@@ -588,7 +584,7 @@ export class DocumentsService {
                 image_url = await this.s3Service.getPresignedDownloadUrl(
                   u.imageKey,
                   u.name || undefined,
-                  false,
+                  false
                 );
               } catch {
                 image_url = null;
@@ -603,7 +599,7 @@ export class DocumentsService {
               documentsCount: documentsCountMap.get(u.id) ?? 0,
               isFollowing: currentUserId ? isFollowingSet.has(u.id) : false,
             };
-          }),
+          })
         );
 
         return users;
@@ -761,7 +757,7 @@ export class DocumentsService {
 
   filterDocuments(
     docs: any[],
-    opts?: { faculty?: string; type?: string; sort?: 'newest' | 'oldest' | 'downloadCount' },
+    opts?: { faculty?: string; type?: string; sort?: 'newest' | 'oldest' | 'downloadCount' }
   ): any[] {
     let results = Array.isArray(docs) ? docs.slice() : [];
 
@@ -770,10 +766,8 @@ export class DocumentsService {
 
       results = results.filter((d) =>
         Array.isArray(d.faculties)
-          ? d.faculties.some((x: any) =>
-              ((x?.name ?? '') as string).toLowerCase().includes(f),
-            )
-          : false,
+          ? d.faculties.some((x: any) => ((x?.name ?? '') as string).toLowerCase().includes(f))
+          : false
       );
     }
 
@@ -1518,15 +1512,29 @@ export class DocumentsService {
     if (document.status === Status.ACTIVE)
       throw new BadRequestException('Tài liệu đã được duyệt trước đó');
     document.status = Status.ACTIVE;
+    
+    // Gửi notification cho subscribers (người theo dõi môn/khoa)
     if (document.faculties || document.subject) {
       await this.notificationsService.sendNewDocumentNotification(
         document.id,
         document.faculties ? document.faculties.map((faculty) => faculty.id) : [],
         document.subject ? document.subject.id : undefined,
         document.title,
-        document.uploader?.id // Thêm uploaderId
+        document.uploader?.id // uploaderId sẽ bị loại khỏi danh sách subscribers
       );
     }
+    
+    // Gửi notification riêng cho uploader (tài liệu đã được duyệt)
+    if (document.uploader?.id) {
+      await this.notificationsService.sendDocumentApprovedNotification(
+        document.id,
+        document.uploader.id,
+        document.title,
+        document.faculties ? document.faculties.map((f) => f.name) : undefined,
+        document.subject?.name
+      );
+    }
+    
     console.log('Document status updated to ACTIVE');
     return await this.documentRepo.save(document);
   }
@@ -1633,6 +1641,14 @@ export class DocumentsService {
                   false
                 )
               : undefined,
+            fileType: doc.fileType || undefined,
+            subject: doc.subject ? doc.subject.name : null,
+            overallRating: doc.ratings
+              ? doc.ratings.length > 0
+                ? doc.ratings.reduce((sum, rating) => sum + rating.score, 0) / doc.ratings.length
+                : 0
+              : 0,
+            downloadCount: doc.downloadCount,
             uploadDate: doc.uploadDate,
             downloadUrl: doc.fileKey
               ? await this.s3Service.getPresignedDownloadUrl(

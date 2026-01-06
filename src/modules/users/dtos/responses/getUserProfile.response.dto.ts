@@ -11,6 +11,7 @@ export class GetUserProfileResponseDto {
   @ApiProperty() documentCount?: number;
   @ApiProperty() numberFollowers: number;
   @ApiProperty() participationDays: number;
+  @ApiProperty() isFollowed: boolean;
   constructor(partial: Partial<GetUserProfileResponseDto>) {
     Object.assign(this, partial);
   }

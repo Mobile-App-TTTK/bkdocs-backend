@@ -14,7 +14,7 @@ export class DocumentResponseDto {
   faculties: string[];
 
   @ApiProperty({ example: 'Giải tích 1' })
-  subject: string;
+  subject: string  | null;
 
   @ApiProperty({
     example: { name: 'John Doe', id: '123', isVerified: true },
