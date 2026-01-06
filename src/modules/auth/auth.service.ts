@@ -54,15 +54,6 @@ export class AuthService {
     let rec = await this.prRepo.findOne({ where: { purpose: 'register', email } });
     const now = new Date();
 
-    if (rec?.lastOtpSentAt) {
-      const diffSec = Math.floor((now.getTime() - rec.lastOtpSentAt.getTime()) / 1000);
-      if (diffSec < this.OTP_COOLDOWN_SEC) {
-        throw new BadRequestException(
-          `Please wait ${this.OTP_COOLDOWN_SEC - diffSec}s before requesting another OTP.`
-        );
-      }
-    }
-
     const otp = this.genOtp4();
     const otpHash = await bcrypt.hash(otp, this.BCRYPT_ROUNDS);
     const expiresAt = new Date(now.getTime() + this.OTP_TTL_MIN * 60 * 1000);
