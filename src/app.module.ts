@@ -17,12 +17,15 @@ import { AdminModule } from './modules/admin/admin.module';
 import { AiModule } from './modules/ai/ai.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
+import { SentryModule } from '@common/sentry';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true, // dùng ở mọi nơi không cần import lại
     }),
+    // Sentry Module for error tracking
+    SentryModule,
     // Serve public files (HTML, JS) từ root
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'public'),
