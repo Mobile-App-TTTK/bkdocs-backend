@@ -1404,6 +1404,7 @@ export class DocumentsService {
     facultyIds?: string[],
     subjectId?: string,
     documentTypeId?: string,
+    title?: string,
     description?: string,
     fileType: string = ''
   ): Promise<DocumentResponseDto> {
@@ -1432,7 +1433,7 @@ export class DocumentsService {
       ? await this.documentTypeRepo.findOneBy({ id: documentTypeId })
       : null;
     const doc = this.documentRepo.create({
-      title: file.originalname,
+      title: title || file.originalname,
       description: description || null,
       fileKey,
       thumbnailKey,
@@ -1441,7 +1442,9 @@ export class DocumentsService {
       subject: subjectId ? subject : null,
       documentType: documentType,
       status: 'pending',
-      fileType: fileType || (file.originalname.split('.').pop() || '').toLowerCase(),
+      fileType: fileType 
+        ? this.extractFileExtensionFromMimetype(fileType) 
+        : (file.originalname?.split('.').pop() || '').toLowerCase(),
     } as DeepPartial<Document>);
     const savedDoc = await this.documentRepo.save(doc);
 
@@ -1680,5 +1683,30 @@ export class DocumentsService {
     });
 
     return this.subjectRepo.save(newSubject);
+  }
+
+  /**
+   * Helper method to extract file extension from mimetype
+   * @param mimetype - The MIME type (e.g., 'application/pdf')
+   * @returns File extension (e.g., 'pdf')
+   */
+  private extractFileExtensionFromMimetype(mimetype: string): string {
+    const mimetypeMap: Record<string, string> = {
+      'application/pdf': 'pdf',
+      'application/msword': 'doc',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+      'application/vnd.ms-powerpoint': 'ppt',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+      'application/vnd.ms-excel': 'xls',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+      'image/svg+xml': 'svg',
+    };
+
+    return mimetypeMap[mimetype] || mimetype.split('/').pop() || '';
   }
 }

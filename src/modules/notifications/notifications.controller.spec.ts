@@ -208,7 +208,7 @@ describe('NotificationsController', () => {
       const req = { user: { userId: 'user-2' } };
       mockNotificationsService.saveFcmToken.mockResolvedValue({ message: 'Saved' });
 
-      await controller.saveFcmToken(dto, req);
+      await controller.saveFcmToken(req, dto);
 
       expect(notificationsService.saveFcmToken).toHaveBeenCalledWith('user-2', 'token-456');
     });

@@ -9,9 +9,8 @@ describe('RatesController', () => {
   const mockRatesService = {
     getScoreCounts: jest.fn(),
     getAllDocument: jest.fn(),
-    createOrUpdateReview: jest.fn(),
-    deleteReview: jest.fn(),
-    getMyReview: jest.fn(),
+    createOrUpdateRatingAndComment: jest.fn(),
+    getTopKDocumentReviews: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -134,7 +133,7 @@ describe('RatesController', () => {
       const req = { user: { userId: 'user-1' } };
       mockRatesService.createOrUpdateRatingAndComment.mockResolvedValue(undefined);
 
-      await controller.createReview(documentId, dto, undefined, req);
+      await controller.createReview(documentId, dto, undefined as any, req);
 
       expect(ratesService.createOrUpdateRatingAndComment).toHaveBeenCalledWith(
         'doc-1',
@@ -145,46 +144,5 @@ describe('RatesController', () => {
     });
   });
 
-  describe('deleteReview', () => {
-    it('should delete review', async () => {
-      const documentId = 'doc-1';
-      const req = { user: { userId: 'user-1' } };
-      mockRatesService.deleteReview.mockResolvedValue({ message: 'Deleted' });
 
-      const result = await controller.deleteReview(documentId, req);
-
-      expect(ratesService.deleteReview).toHaveBeenCalledWith('user-1', 'doc-1');
-      expect(result.message).toBe('Deleted');
-    });
-
-    it('should handle delete errors', async () => {
-      const req = { user: { userId: 'user-1' } };
-      mockRatesService.deleteReview.mockRejectedValue(new Error('Not found'));
-
-      await expect(controller.deleteReview('doc-1', req)).rejects.toThrow('Not found');
-    });
-  });
-
-  describe('getMyReview', () => {
-    it('should return user review for document', async () => {
-      const documentId = 'doc-1';
-      const req = { user: { userId: 'user-1' } };
-      const mockReview = { id: '1', score: 5, content: 'Great!' };
-      mockRatesService.getMyReview.mockResolvedValue(mockReview);
-
-      const result = await controller.getMyReview(documentId, req);
-
-      expect(ratesService.getMyReview).toHaveBeenCalledWith('user-1', 'doc-1');
-      expect(result).toEqual(mockReview);
-    });
-
-    it('should return null if no review', async () => {
-      const req = { user: { userId: 'user-1' } };
-      mockRatesService.getMyReview.mockResolvedValue(null);
-
-      const result = await controller.getMyReview('doc-1', req);
-
-      expect(result).toBeNull();
-    });
-  });
 });

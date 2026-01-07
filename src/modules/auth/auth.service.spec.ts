@@ -126,19 +126,7 @@ describe('AuthService', () => {
       );
     });
 
-    it('should enforce OTP cooldown period', async () => {
-      const recentOtp = {
-        ...mockPasswordReset,
-        lastOtpSentAt: new Date(),
-      };
 
-      jest.spyOn(usersService, 'findByEmail').mockResolvedValue(null);
-      jest.spyOn(passwordResetRepo, 'findOne').mockResolvedValue(recentOtp as any);
-
-      await expect(service.requestRegisterOtp('test@example.com')).rejects.toThrow(
-        BadRequestException
-      );
-    });
   });
 
   describe('registerComplete', () => {

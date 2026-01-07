@@ -193,5 +193,51 @@ describe('AdminService', () => {
 
       expect(result).toHaveProperty('banStatus', BanStatus.NONE);
     });
+
+    it('should handle database errors gracefully', async () => {
+      jest.spyOn(userRepo, 'findOne').mockRejectedValue(new Error('Database error'));
+
+      await expect(
+        service.updateUserBanStatus('admin-123', 'user-123', BanStatus.BANNED)
+      ).rejects.toThrow('Database error');
+    });
+  });
+
+  describe('getStatistics - additional cases', () => {
+    it('should handle large numbers correctly', async () => {
+      jest.spyOn(userRepo, 'count').mockResolvedValue(999999);
+      jest.spyOn(documentRepo, 'count').mockResolvedValue(50000);
+
+      const result = await service.getStatistics();
+
+      expect(result.totalUsers).toBe(999999);
+      expect(result.pendingDocuments).toBe(50000);
+    });
+
+    it('should handle database errors in statistics', async () => {
+      jest.spyOn(userRepo, 'count').mockRejectedValue(new Error('DB Connection failed'));
+
+      await expect(service.getStatistics()).rejects.toThrow('DB Connection failed');
+    });
+  });
+
+  describe('getAdminMembers - additional cases', () => {
+    it('should return empty array when no users exist', async () => {
+      jest.spyOn(userRepo, 'find').mockResolvedValue([]);
+
+      const result = await service.getAdminMembers();
+
+      expect(result).toEqual([]);
+    });
+
+    it('should handle users with null followers and documents', async () => {
+      const userWithNulls = { ...mockUser, followers: null, documents: null };
+      jest.spyOn(userRepo, 'find').mockResolvedValue([userWithNulls] as any);
+
+      const result = await service.getAdminMembers();
+
+      expect(result[0].followerCount).toBe(0);
+      expect(result[0].uploadedDocumentsCount).toBe(0);
+    });
   });
 });

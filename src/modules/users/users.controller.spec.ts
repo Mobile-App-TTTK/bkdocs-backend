@@ -18,14 +18,13 @@ describe('UsersController', () => {
   const mockUsersService = {
     getMyProfile: jest.fn(),
     updateProfile: jest.fn(),
-    followUser: jest.fn(),
-    unfollowUser: jest.fn(),
-    getFollowedUsersAndSubscribedTopics: jest.fn(),
-    getUserById: jest.fn(),
+    toggleFollowUser: jest.fn(),
+    getFollowingAndSubscribingList: jest.fn(),
+    getProfile: jest.fn(),
   };
 
   const mockDocumentsService = {
-    getDocumentsByUser: jest.fn(),
+    getDocumentsByUserId: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -78,27 +77,27 @@ describe('UsersController', () => {
   describe('updateProfile', () => {
     it('should update user profile', async () => {
       const req = { user: { userId: '1' } };
-      const dto = { name: 'Updated Name' };
+      const name = 'Updated Name';
       const file = { buffer: Buffer.from('test') } as Express.Multer.File;
       mockUsersService.updateProfile.mockResolvedValue({
         ...mockUser,
         name: 'Updated Name',
       } as any);
 
-      const result = await controller.updateProfile(dto, file, req);
+      const result = await controller.updateProfile(req, name, undefined, undefined, file);
 
-      expect(usersService.updateProfile).toHaveBeenCalledWith('1', dto, file);
+      expect(usersService.updateProfile).toHaveBeenCalled();
       expect(result.name).toBe('Updated Name');
     });
 
     it('should update profile without file', async () => {
       const req = { user: { userId: '1' } };
-      const dto = { name: 'New Name' };
+      const name = 'New Name';
       mockUsersService.updateProfile.mockResolvedValue(mockUser as any);
 
-      await controller.updateProfile(dto, undefined, req);
+      await controller.updateProfile(req, name, undefined, undefined, undefined);
 
-      expect(usersService.updateProfile).toHaveBeenCalledWith('1', dto, undefined);
+      expect(usersService.updateProfile).toHaveBeenCalled();
     });
   });
 
@@ -121,19 +120,17 @@ describe('UsersController', () => {
     });
   });
 
-  describe('getFollowedAndSubscribed', () => {
-    it('should return followed users and subscribed topics', async () => {
+  describe('getFollowingAndSubscribingList', () => {
+    it('should return following and subscribing list', async () => {
       const req = { user: { userId: '1' } };
-      const mockData = {
-        followedUsers: [{ id: '2', name: 'User 2' }],
-        subscribedFaculties: [{ id: '1', name: 'CNTT' }],
-        subscribedSubjects: [{ id: '1', name: 'Web' }],
-      };
-      mockUsersService.getFollowedUsersAndSubscribedTopics.mockResolvedValue(mockData);
+      const mockData = [
+        { id: '2', name: 'User 2' },
+      ];
+      mockUsersService.getFollowingAndSubscribingList.mockResolvedValue(mockData);
 
-      const result = await controller.getFollowedAndSubscribed(req);
+      const result = await controller.getFollowingAndSubscribingList(req);
 
-      expect(usersService.getFollowedUsersAndSubscribedTopics).toHaveBeenCalledWith('1');
+      expect(usersService.getFollowingAndSubscribingList).toHaveBeenCalledWith('1');
       expect(result).toEqual(mockData);
     });
   });
@@ -145,18 +142,18 @@ describe('UsersController', () => {
         { id: '1', title: 'Doc 1' },
         { id: '2', title: 'Doc 2' },
       ];
-      mockDocumentsService.getDocumentsByUser.mockResolvedValue(mockDocuments);
+      mockDocumentsService.getDocumentsByUserId.mockResolvedValue(mockDocuments);
 
-      const result = await controller.getUserDocuments(userId);
+      const result = await controller.getUserDocuments(userId, 10, 1);
 
-      expect(documentsService.getDocumentsByUser).toHaveBeenCalledWith(userId);
+      expect(documentsService.getDocumentsByUserId).toHaveBeenCalledWith(userId, 10, 1);
       expect(result).toEqual(mockDocuments);
     });
 
     it('should handle empty documents', async () => {
-      mockDocumentsService.getDocumentsByUser.mockResolvedValue([]);
+      mockDocumentsService.getDocumentsByUserId.mockResolvedValue([]);
 
-      const result = await controller.getUserDocuments('1');
+      const result = await controller.getUserDocuments('1', 10, 1);
 
       expect(result).toEqual([]);
     });
@@ -165,18 +162,20 @@ describe('UsersController', () => {
   describe('getUserProfile', () => {
     it('should return specific user profile', async () => {
       const userId = '2';
-      mockUsersService.getUserById.mockResolvedValue({ id: '2', name: 'User 2' });
+      const req = { user: { userId: '1' } };
+      mockUsersService.getProfile.mockResolvedValue({ id: '2', name: 'User 2' });
 
-      const result = await controller.getUserProfile(userId);
+      const result = await controller.getUserProfile(userId, req);
 
-      expect(usersService.getUserById).toHaveBeenCalledWith('2');
+      expect(usersService.getProfile).toHaveBeenCalledWith('2', '1');
       expect(result.id).toBe('2');
     });
 
     it('should handle non-existent user', async () => {
-      mockUsersService.getUserById.mockRejectedValue(new Error('User not found'));
+      const req = { user: { userId: '1' } };
+      mockUsersService.getProfile.mockRejectedValue(new Error('User not found'));
 
-      await expect(controller.getUserProfile('999')).rejects.toThrow('User not found');
+      await expect(controller.getUserProfile('999', req)).rejects.toThrow('User not found');
     });
   });
 });

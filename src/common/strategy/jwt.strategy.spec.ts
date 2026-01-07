@@ -16,7 +16,7 @@ describe('JwtStrategy', () => {
     email: 'test@example.com',
     name: 'Test User',
     role: UserRole.STUDENT,
-    banStatus: BanStatus.ACTIVE,
+    banStatus: BanStatus.NONE,
   };
 
   beforeEach(async () => {
@@ -86,7 +86,7 @@ describe('JwtStrategy', () => {
     });
 
     it('should accept active user', async () => {
-      const activeUser = { ...mockUser, banStatus: BanStatus.ACTIVE };
+      const activeUser = { ...mockUser, banStatus: BanStatus.NONE };
       jest.spyOn(usersService, 'findById').mockResolvedValue(activeUser as any);
 
       const payload = { sub: 'user-123', email: 'test@example.com' };
