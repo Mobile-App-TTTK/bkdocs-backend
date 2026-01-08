@@ -55,12 +55,19 @@ export class S3Service implements OnModuleInit {
     expiresInSeconds = 3600
   ): Promise<string> {
     try {
+      let contentDisposition: string | undefined = undefined;
+
+      if (download) {
+        const sanitizedFileName = fileName || 'downloaded-file';
+        // Encode filename theo RFC 5987 để hỗ trợ Unicode (tiếng Việt)
+        const encodedFileName = encodeURIComponent(sanitizedFileName);
+        contentDisposition = `attachment; filename="${sanitizedFileName.replace(/[^\x00-\x7F]/g, '_')}"; filename*=UTF-8''${encodedFileName}`;
+      }
+
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
         Key: fileKey,
-        ResponseContentDisposition: download
-          ? `attachment; filename="${fileName || 'downloaded-file'}"`
-          : undefined,
+        ResponseContentDisposition: contentDisposition,
       });
       const url = await getSignedUrl(this.s3Client, command, { expiresIn: expiresInSeconds });
 
