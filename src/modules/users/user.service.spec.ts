@@ -437,5 +437,74 @@ describe('UsersService', () => {
 
       await expect(service.toggleVerifyUser('nonexistent-id')).rejects.toThrow(NotFoundException);
     });
+
+    it('should unverify an already verified user', async () => {
+      const verifiedUser = { ...mockUser, isVerified: true };
+      jest.spyOn(usersRepo, 'findOne').mockResolvedValue(verifiedUser as any);
+      jest.spyOn(usersRepo, 'save').mockResolvedValue({ ...mockUser, isVerified: false } as any);
+
+      const result = await service.toggleVerifyUser('user-123');
+
+      expect(result.isVerified).toBe(false);
+    });
+  });
+
+  describe('Additional edge cases', () => {
+    it('should handle empty following list', async () => {
+      const userWithEmptyFollowing = {
+        ...mockUser,
+        following: [],
+        subscribedFaculties: [],
+        subscribedSubjects: [],
+      };
+
+      jest.spyOn(usersRepo, 'findOne').mockResolvedValue(userWithEmptyFollowing as any);
+
+      const result = await service.getFollowingAndSubscribingList('user-123');
+
+      expect(result[0].followingUsers).toEqual([]);
+      expect(result[0].subscribedFacultyIds).toEqual([]);
+    });
+
+    it('should handle user with many documents', async () => {
+      const userWithManyDocs = {
+        ...mockUser,
+        documents: new Array(100).fill({ id: 'doc', status: Status.ACTIVE }),
+      };
+
+      jest.spyOn(usersRepo, 'findOne').mockResolvedValue(userWithManyDocs as any);
+      jest.spyOn(s3Service, 'getPresignedDownloadUrl').mockResolvedValue('https://s3.url/image.jpg');
+
+      const result = await service.getMyProfile('user-123');
+
+      expect(result.documentCount).toBe(100);
+    });
+
+    it('should calculate participation days correctly', async () => {
+      const oldUser = {
+        ...mockUser,
+        createdAt: new Date('2020-01-01'),
+      };
+
+      jest.spyOn(usersRepo, 'findOne').mockResolvedValue(oldUser as any);
+      jest.spyOn(s3Service, 'getPresignedDownloadUrl').mockResolvedValue('https://s3.url/image.jpg');
+
+      const result = await service.getMyProfile('user-123');
+
+      expect(result.participationDays).toBeGreaterThan(1000);
+    });
+
+    it('should handle update with only name change', async () => {
+      const updateDto = { name: 'New Name Only' };
+
+      jest.spyOn(usersRepo, 'findOne').mockResolvedValue(mockUser as any);
+      jest.spyOn(usersRepo, 'save').mockResolvedValue({ ...mockUser, name: 'New Name Only' } as any);
+      jest.spyOn(s3Service, 'getPresignedDownloadUrl').mockResolvedValue('https://s3.url/image.jpg');
+
+      const result = await service.updateProfile('user-123', updateDto);
+
+      expect(result.name).toBe('New Name Only');
+      expect(usersRepo.save).toHaveBeenCalled();
+    });
   });
 });

@@ -1404,6 +1404,7 @@ export class DocumentsService {
     facultyIds?: string[],
     subjectId?: string,
     documentTypeId?: string,
+    title?: string,
     description?: string,
     fileType: string = ''
   ): Promise<DocumentResponseDto> {
@@ -1432,7 +1433,7 @@ export class DocumentsService {
       ? await this.documentTypeRepo.findOneBy({ id: documentTypeId })
       : null;
     const doc = this.documentRepo.create({
-      title: file.originalname,
+      title: title || file.originalname,
       description: description || null,
       fileKey,
       thumbnailKey,
@@ -1441,7 +1442,9 @@ export class DocumentsService {
       subject: subjectId ? subject : null,
       documentType: documentType,
       status: 'pending',
-      fileType: fileType || (file.originalname.split('.').pop() || '').toLowerCase(),
+      fileType: fileType 
+        ? this.extractFileExtensionFromMimetype(fileType) 
+        : (file.originalname?.split('.').pop() || '').toLowerCase(),
     } as DeepPartial<Document>);
     const savedDoc = await this.documentRepo.save(doc);
 
@@ -1504,14 +1507,19 @@ export class DocumentsService {
 
     console.log('document found:', document);
     if (!document) throw new NotFoundException('Không tìm thấy tài liệu');
-    if (status != Status.ACTIVE) {
-      document.status = Status.INACTIVE;
-      console.log('Document refused');
+    // Kiểm tra nếu tài liệu đã được duyệt và admin muốn duyệt lại
+    if (document.status === Status.ACTIVE && status === Status.ACTIVE) {
+      throw new BadRequestException('Tài liệu đã được duyệt trước đó');
+    }
+
+    // Cập nhật status theo giá trị được gửi lên
+    document.status = status as Status;
+
+    // Chỉ gửi notification khi status là ACTIVE
+    if (status !== Status.ACTIVE) {
+      console.log(`Document status updated to ${status}`);
       return await this.documentRepo.save(document);
     }
-    if (document.status === Status.ACTIVE)
-      throw new BadRequestException('Tài liệu đã được duyệt trước đó');
-    document.status = Status.ACTIVE;
     
     // Gửi notification cho subscribers (người theo dõi môn/khoa)
     if (document.faculties || document.subject) {
@@ -1680,5 +1688,30 @@ export class DocumentsService {
     });
 
     return this.subjectRepo.save(newSubject);
+  }
+
+  /**
+   * Helper method to extract file extension from mimetype
+   * @param mimetype - The MIME type (e.g., 'application/pdf')
+   * @returns File extension (e.g., 'pdf')
+   */
+  private extractFileExtensionFromMimetype(mimetype: string): string {
+    const mimetypeMap: Record<string, string> = {
+      'application/pdf': 'pdf',
+      'application/msword': 'doc',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+      'application/vnd.ms-powerpoint': 'ppt',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+      'application/vnd.ms-excel': 'xls',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+      'image/svg+xml': 'svg',
+    };
+
+    return mimetypeMap[mimetype] || mimetype.split('/').pop() || '';
   }
 }

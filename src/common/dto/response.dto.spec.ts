@@ -10,7 +10,7 @@ describe('ResponseDto', () => {
       expect(result.success).toBe(true);
       expect(result.data).toEqual(data);
       expect(result.message).toBe('Thành công');
-      expect(result.statusCode).toBeUndefined();
+      expect(result.statusCode).toBe(200);
     });
 
     it('should create success response with custom message', () => {
@@ -48,7 +48,7 @@ describe('ResponseDto', () => {
       expect(result.success).toBe(false);
       expect(result.message).toBe(message);
       expect(result.statusCode).toBe(statusCode);
-      expect(result.data).toBeUndefined();
+      expect(result.data).toBeNull();
     });
 
     it('should create error response with default message', () => {
@@ -69,7 +69,7 @@ describe('ResponseDto', () => {
 
   describe('constructor', () => {
     it('should initialize with all properties', () => {
-      const dto = new ResponseDto(true, { test: 'data' }, 'Success', 200);
+      const dto = new ResponseDto({ success: true, data: { test: 'data' }, message: 'Success', statusCode: 200 });
 
       expect(dto.success).toBe(true);
       expect(dto.data).toEqual({ test: 'data' });
@@ -78,7 +78,7 @@ describe('ResponseDto', () => {
     });
 
     it('should initialize with minimal properties', () => {
-      const dto = new ResponseDto(false, null, 'Error');
+      const dto = new ResponseDto({ success: false, data: null, message: 'Error' });
 
       expect(dto.success).toBe(false);
       expect(dto.data).toBeNull();

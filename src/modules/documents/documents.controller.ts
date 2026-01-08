@@ -236,7 +236,8 @@ export class DocumentsController {
       subjectId,
       documentTypeId,
       title,
-      description
+      description,
+      files.file[0].mimetype,
     );
   }
 
