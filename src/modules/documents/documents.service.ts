@@ -1507,14 +1507,19 @@ export class DocumentsService {
 
     console.log('document found:', document);
     if (!document) throw new NotFoundException('Không tìm thấy tài liệu');
-    if (status != Status.ACTIVE) {
-      document.status = Status.INACTIVE;
-      console.log('Document refused');
+    // Kiểm tra nếu tài liệu đã được duyệt và admin muốn duyệt lại
+    if (document.status === Status.ACTIVE && status === Status.ACTIVE) {
+      throw new BadRequestException('Tài liệu đã được duyệt trước đó');
+    }
+
+    // Cập nhật status theo giá trị được gửi lên
+    document.status = status as Status;
+
+    // Chỉ gửi notification khi status là ACTIVE
+    if (status !== Status.ACTIVE) {
+      console.log(`Document status updated to ${status}`);
       return await this.documentRepo.save(document);
     }
-    if (document.status === Status.ACTIVE)
-      throw new BadRequestException('Tài liệu đã được duyệt trước đó');
-    document.status = Status.ACTIVE;
     
     // Gửi notification cho subscribers (người theo dõi môn/khoa)
     if (document.faculties || document.subject) {

@@ -572,9 +572,17 @@ describe('DocumentsService - Additional Tests', () => {
   });
 
   describe('uploadDocument', () => {
-    it.skip('should upload document successfully', async () => {
-      const mockFile = { buffer: Buffer.from('test') } as Express.Multer.File;
-      const mockThumbnail = { buffer: Buffer.from('thumb') } as Express.Multer.File;
+    it('should upload document successfully', async () => {
+      const mockFile = { 
+        buffer: Buffer.from('test'),
+        originalname: 'test-document.pdf',
+        mimetype: 'application/pdf'
+      } as Express.Multer.File;
+      const mockThumbnail = { 
+        buffer: Buffer.from('thumb'),
+        originalname: 'thumbnail.jpg',
+        mimetype: 'image/jpeg'
+      } as Express.Multer.File;
 
       jest.spyOn(userRepo, 'findOneBy').mockResolvedValue({ id: 'user-1' } as any);
       jest.spyOn(facultyRepo, 'findBy').mockResolvedValue([{ id: 'f1' }] as any);
@@ -594,7 +602,8 @@ describe('DocumentsService - Additional Tests', () => {
         's1',
         't1',
         'Test Doc',
-        'Description'
+        'Description',
+        'application/pdf'
       );
 
       expect(result).toBeDefined();
@@ -1097,6 +1106,266 @@ describe('DocumentsService - Additional Tests', () => {
       );
 
       expect(result).toBeDefined();
+    });
+  });
+
+  describe('createSubject', () => {
+    it('should create a new subject successfully', async () => {
+      const mockImage = { buffer: Buffer.from('image') } as Express.Multer.File;
+
+      jest.spyOn(subjectRepo, 'findOneBy').mockResolvedValue(null);
+      jest.spyOn(s3Service, 'uploadFile').mockResolvedValue('subject-images/image-key');
+      jest.spyOn(subjectRepo, 'create').mockReturnValue({ id: 's1', name: 'New Subject' } as any);
+      jest.spyOn(subjectRepo, 'save').mockResolvedValue({ id: 's1', name: 'New Subject' } as any);
+
+      const result = await service.createSubject('New Subject', 'Description', mockImage);
+
+      expect(result).toBeDefined();
+      expect(result.name).toBe('New Subject');
+      expect(s3Service.uploadFile).toHaveBeenCalledWith(mockImage, 'subject-images');
+    });
+
+    it('should throw BadRequestException if subject already exists', async () => {
+      jest.spyOn(subjectRepo, 'findOneBy').mockResolvedValue({ id: 's1', name: 'Existing' } as any);
+
+      await expect(
+        service.createSubject('Existing', 'Description', null as any)
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should create subject without image', async () => {
+      jest.spyOn(subjectRepo, 'findOneBy').mockResolvedValue(null);
+      jest.spyOn(subjectRepo, 'create').mockReturnValue({ id: 's1', name: 'Subject' } as any);
+      jest.spyOn(subjectRepo, 'save').mockResolvedValue({ id: 's1', name: 'Subject' } as any);
+
+      const result = await service.createSubject('Subject', 'Desc', undefined as any);
+
+      expect(result).toBeDefined();
+      expect(s3Service.uploadFile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getDocumentsBySubject - additional cases', () => {
+    it('should return documents for a subject', async () => {
+      const mockSubject = { id: 's1', name: 'Math', imageUrl: 'url' };
+      
+      jest.spyOn(subjectRepo, 'findOne').mockResolvedValue(mockSubject as any);
+      mockQueryBuilder.getRawOne.mockResolvedValue({ cnt: '5' });
+      mockQueryBuilder.getRawMany.mockResolvedValue([]);
+
+      const result = await service.getDocumentsBySubject('s1', 'user-1');
+
+      expect(result).toBeDefined();
+      expect(result.name).toBe('Math');
+    });
+
+    it('should throw NotFoundException if subject not found', async () => {
+      jest.spyOn(subjectRepo, 'findOne').mockResolvedValue(null);
+
+      await expect(service.getDocumentsBySubject('invalid-id', 'user-1')).rejects.toThrow(
+        NotFoundException
+      );
+    });
+  });
+
+  describe('Additional edge cases', () => {
+    it('should handle getDownloadUrl with missing fileKey', async () => {
+      jest.spyOn(documentRepo, 'findOne').mockResolvedValue({ id: 'd1', fileKey: null } as any);
+
+      await expect(service.getDownloadUrl('d1')).rejects.toThrow();
+    });
+
+    it('should handle uploadDocument with images', async () => {
+      const mockFile = { 
+        buffer: Buffer.from('test'),
+        originalname: 'doc.pdf',
+        mimetype: 'application/pdf'
+      } as Express.Multer.File;
+      const mockImages = [
+        { buffer: Buffer.from('img1') } as Express.Multer.File,
+        { buffer: Buffer.from('img2') } as Express.Multer.File,
+      ];
+
+      jest.spyOn(userRepo, 'findOneBy').mockResolvedValue({ id: 'u1' } as any);
+      jest.spyOn(facultyRepo, 'findBy').mockResolvedValue([]);
+      jest.spyOn(subjectRepo, 'findOneBy').mockResolvedValue(null);
+      jest.spyOn(documentTypeRepo, 'findOneBy').mockResolvedValue(null);
+      jest.spyOn(s3Service, 'uploadFile').mockResolvedValue('key');
+      jest.spyOn(documentRepo, 'create').mockReturnValue({ id: 'd1' } as any);
+      jest.spyOn(documentRepo, 'save').mockResolvedValue({ id: 'd1', title: 'Test' } as any);
+      jest.spyOn(imageRepo, 'create').mockReturnValue({} as any);
+      jest.spyOn(imageRepo, 'save').mockResolvedValue([] as any);
+      jest.spyOn(notificationsService, 'sendNewDocumentNotification').mockResolvedValue(undefined);
+
+      const result = await service.uploadDocument(
+        mockFile,
+        mockImages,
+        'u1',
+        undefined,
+        [],
+        undefined,
+        undefined,
+        'Title',
+        'Desc',
+        'application/pdf'
+      );
+
+      expect(result).toBeDefined();
+      expect(imageRepo.save).toHaveBeenCalled();
+    });
+
+    it('should handle suggest with special characters', async () => {
+      jest.spyOn(documentRepo, 'find').mockResolvedValue([{ title: 'C++' }] as any);
+      jest.spyOn(subjectRepo, 'find').mockResolvedValue([]);
+      jest.spyOn(facultyRepo, 'find').mockResolvedValue([]);
+      jest.spyOn(userRepo, 'find').mockResolvedValue([]);
+
+      const result = await service.suggest('c++');
+
+      expect(Array.isArray(result)).toBe(true);
+    });
+
+    it('should handle updateDocumentStatus with INACTIVE status', async () => {
+      const mockDoc = {
+        id: 'd1',
+        status: Status.PENDING,
+        faculties: [],
+        subject: null,
+        uploader: null,
+      };
+
+      jest.spyOn(documentRepo, 'findOne').mockResolvedValue(mockDoc as any);
+      jest.spyOn(documentRepo, 'save').mockResolvedValue({ ...mockDoc, status: Status.INACTIVE } as any);
+
+      const result = await service.updateDocumentStatus('d1', Status.INACTIVE);
+
+      expect(result.status).toBe(Status.INACTIVE);
+    });
+
+    it('should throw BadRequestException if document already active', async () => {
+      const mockDoc = {
+        id: 'd1',
+        status: Status.ACTIVE,
+        faculties: [],
+        subject: null,
+        uploader: null,
+      };
+
+      jest.spyOn(documentRepo, 'findOne').mockResolvedValue(mockDoc as any);
+
+      await expect(service.updateDocumentStatus('d1', Status.ACTIVE)).rejects.toThrow(
+        BadRequestException
+      );
+    });
+
+    it('should handle getAllFacultiesSuggestions', async () => {
+      const mockFaculties = [
+        { id: 'f1', name: 'CS', documents: [{ id: 'd1', status: Status.ACTIVE, thumbnailKey: 'thumb' }] },
+      ];
+
+      jest.spyOn(facultyRepo, 'find').mockResolvedValue(mockFaculties as any);
+      jest.spyOn(s3Service, 'getPresignedDownloadUrl').mockResolvedValue('url');
+
+      const result = await service.getAllFacultiesSuggestions();
+
+      expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+    });
+
+    it('should handle suggestSubjectsForUser with valid user', async () => {
+      const mockUser = {
+        id: 'u1',
+        faculty: { id: 'f1' },
+        intakeYear: 2023,
+      };
+      const mockFys = [
+        { subject: { id: 's1', name: 'Math', imageUrl: null } },
+      ];
+
+      jest.spyOn(usersService, 'findByIdWithFaculty').mockResolvedValue(mockUser as any);
+      jest.spyOn(fysRepo, 'find').mockResolvedValue(mockFys as any);
+      mockQueryBuilder.getRawMany.mockResolvedValue([{ id: 's1', count: '10' }]);
+
+      const result = await service.suggestSubjectsForUser('u1');
+
+      expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+    });
+
+    it('should handle suggestSubjectsForUser with no faculty', async () => {
+      const mockUser = { id: 'u1', faculty: null, intakeYear: null };
+      const mockSubjects = [{ id: 's1', name: 'Math', imageUrl: null }];
+
+      jest.spyOn(usersService, 'findByIdWithFaculty').mockResolvedValue(mockUser as any);
+      jest.spyOn(subjectRepo, 'createQueryBuilder').mockReturnValue({
+        ...mockQueryBuilder,
+        orderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(mockSubjects),
+      } as any);
+      mockQueryBuilder.getRawMany.mockResolvedValue([{ id: 's1', count: '5' }]);
+
+      const result = await service.suggestSubjectsForUser('u1');
+
+      expect(result).toBeDefined();
+    });
+
+    it('should handle getPendingDocuments with search term', async () => {
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([[], 0]);
+      jest.spyOn(s3Service, 'getPresignedDownloadUrl').mockResolvedValue('url');
+
+      const result = await service.getPendingDocuments(1, 10, 'search keyword');
+
+      expect(result.data).toEqual([]);
+      expect(result.total).toBe(0);
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalled();
+    });
+
+    it('should handle getDocumentsByUserId', async () => {
+      const mockDocs = [
+        {
+          id: 'd1',
+          title: 'Doc',
+          thumbnailKey: 'thumb',
+          fileKey: 'file',
+          fileType: 'pdf',
+          subject: { name: 'Math' },
+          ratings: [{ score: 5 }, { score: 4 }],
+          downloadCount: 10,
+          uploadDate: new Date(),
+        },
+      ];
+
+      jest.spyOn(documentRepo, 'find').mockResolvedValue(mockDocs as any);
+      jest.spyOn(s3Service, 'getPresignedDownloadUrl').mockResolvedValue('url');
+
+      const result = await service.getDocumentsByUserId('u1', 10, 1);
+
+      expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+    });
+
+    it('should handle getDocumentById with images', async () => {
+      const mockDoc = {
+        id: 'd1',
+        title: 'Test',
+        fileKey: 'file',
+        thumbnailKey: 'thumb',
+        images: [{ id: 'img1', fileKey: 'img-key' }],
+        averageScore: 4.5,
+        uploader: { id: 'u1', name: 'User', isVerified: true, createdAt: new Date() },
+        subject: { name: 'Math' },
+        faculties: [{ name: 'CS' }],
+        documentType: { name: 'Lecture' },
+      };
+
+      jest.spyOn(documentRepo, 'findOne').mockResolvedValue(mockDoc as any);
+      jest.spyOn(s3Service, 'getPresignedDownloadUrl').mockResolvedValue('url');
+
+      const result = await service.getDocumentById('d1');
+
+      expect(result).toBeDefined();
+      expect(result.id).toBe('d1');
     });
   });
 });
