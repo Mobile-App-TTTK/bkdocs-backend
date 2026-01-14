@@ -10,8 +10,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import * as pdfParse from 'pdf-parse';
-import * as mammoth from 'mammoth';
+import mammoth from 'mammoth';
+import { PDFParse } from 'pdf-parse';
 import { Document } from '../documents/entities/document.entity';
 import { User } from '../users/entities/user.entity';
 import { S3Service } from '../s3/s3.service';
@@ -95,7 +95,7 @@ export class AiService {
   }
 
   /**
-   * Main chat handler
+   * Main chat handler with 2-step AI calls
    */
   async chat(
     message: string,
@@ -106,25 +106,44 @@ export class AiService {
     this.logger.log(`Processing chat from user ${userId}: ${message.substring(0, 50)}...`);
 
     try {
-      // Detect intent
-      const intent = this.detectIntent(message);
-      const documentId = this.extractDocumentId(message);
+      // Step 1: First AI call to analyze intent and extract information for database query
+      this.logger.log('Step 1: Analyzing user query with AI...');
+      const analysisPrompt = this.getAnalysisPrompt(message, userId, history);
+      const analysisResult = await this.generateCompletion(analysisPrompt);
 
-      // Build context
-      const context = await this.buildContext(intent, userId, documentId, message);
+      // Parse analysis result to extract intent and parameters
+      const { intent, documentId, keywords, positionInList, needsContext } =
+        this.parseAnalysisResult(analysisResult, message);
+      this.logger.log(
+        `Analysis result - Intent: ${intent}, Keywords: ${keywords?.join(', ') || 'none'}, Position: ${positionInList || 'none'}`
+      );
 
-      // Generate AI response
+      // Build context from database based on analysis
+      let context = '';
+      if (needsContext) {
+        context = await this.buildContextFromAnalysis(
+          intent,
+          userId,
+          documentId,
+          keywords,
+          positionInList
+        );
+        this.logger.log(`Context built: ${context.substring(0, 100)}...`);
+      }
+
+      // Step 2: Second AI call to generate final response with context
+      this.logger.log('Step 2: Generating final response with AI...');
       const systemPrompt = this.getSystemPrompt();
-      const fullPrompt = context
-        ? `${systemPrompt}\n\n **Context:**\n${context}\n\n **User Question:** ${message}`
-        : `${systemPrompt}\n\n **User Question:** ${message}`;
-
       let reply: string;
+
       try {
         reply = await this.generateCompletionWithHistory(history, message, context, systemPrompt);
       } catch (e) {
         // Fallback: try single-prompt generation
         try {
+          const fullPrompt = context
+            ? `${systemPrompt}\n\n**Context:**\n${context}\n\n**User Question:** ${message}`
+            : `${systemPrompt}\n\n**User Question:** ${message}`;
           reply = await this.generateCompletion(fullPrompt);
         } catch (e2) {
           // If search intent and we have context (document list), return it directly
@@ -155,7 +174,154 @@ export class AiService {
   }
 
   /**
-   * Detect intent from message
+   * Get analysis prompt for first AI call
+   */
+  private getAnalysisPrompt(
+    message: string,
+    userId: string,
+    history?: ChatHistoryItemDto[]
+  ): string {
+    // Include recent history context if available
+    let historyContext = '';
+    if (history && history.length > 0) {
+      const recentHistory = history.slice(-2); // Last 2 messages
+      historyContext =
+        '\n\n**Lịch sử hội thoại gần đây:**\n' +
+        recentHistory.map((h) => `- ${h.role}: ${h.content.substring(0, 300)}`).join('\n');
+    }
+
+    return `Bạn là trợ lý AI phân tích yêu cầu của sinh viên về tài liệu học tập.
+
+Phân tích câu hỏi sau và trả về JSON theo định dạng:
+{
+  "intent": "SEARCH" | "RECOMMEND" | "SUMMARIZE" | "DOCUMENT_QUESTION" | "GENERAL",
+  "keywords": ["keyword1", "keyword2"],
+  "documentId": "uuid hoặc null",
+  "positionInList": số thứ tự hoặc null,
+  "needsContext": true | false,
+  "explanation": "Giải thích ngắn gọn"
+}
+
+**Hướng dẫn:**
+- SEARCH: Tìm kiếm tài liệu (ví dụ: "tìm tài liệu về cơ sở dữ liệu")
+- RECOMMEND: Gợi ý tài liệu phù hợp (ví dụ: "gợi ý cho tôi", "đề xuất tài liệu")
+- SUMMARIZE: Tóm tắt tài liệu (ví dụ: "tóm tắt tài liệu abc-123" hoặc "tóm tắt tài liệu đầu tiên")
+- DOCUMENT_QUESTION: Hỏi về nội dung tài liệu (ví dụ: "giải thích khái niệm X trong tài liệu")
+- GENERAL: Câu hỏi chung không liên quan đến tài liệu cụ thể
+
+- keywords: Trích xuất từ khóa quan trọng từ câu hỏi. Nếu người dùng tham chiếu đến kết quả tìm kiếm trước (đầu tiên, thứ hai), hãy lấy keywords từ lịch sử.
+- documentId: Trích xuất UUID nếu có trong câu hỏi hoặc lịch sử
+- positionInList: Nếu người dùng đề cập "đầu tiên/thứ nhất" → 1, "thứ hai" → 2, etc. Nếu không đề cập → null
+- needsContext: true nếu cần truy vấn database để lấy thông tin tài liệu
+${historyContext}
+
+**Câu hỏi của sinh viên:** ${message}
+
+Trả về CHÍNH XÁC JSON, không thêm text nào khác:`;
+  }
+
+  /**
+   * Parse analysis result from first AI call
+   */
+  private parseAnalysisResult(
+    analysisResult: string,
+    originalMessage: string
+  ): {
+    intent: ChatIntent;
+    documentId: string | null;
+    keywords: string[];
+    positionInList: number | null;
+    needsContext: boolean;
+  } {
+    try {
+      // Extract JSON from response (in case AI adds extra text)
+      const jsonMatch = analysisResult.match(/\{[^}]+\}/s);
+      if (!jsonMatch) {
+        this.logger.warn('No JSON found in analysis result, falling back to pattern detection');
+        return this.fallbackAnalysis(originalMessage);
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+
+      return {
+        intent: this.mapIntentString(parsed.intent),
+        documentId: parsed.documentId || this.extractDocumentId(originalMessage),
+        keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
+        positionInList: typeof parsed.positionInList === 'number' ? parsed.positionInList : null,
+        needsContext: parsed.needsContext !== false,
+      };
+    } catch (error) {
+      this.logger.error('Failed to parse analysis result:', error);
+      this.logger.warn('Falling back to pattern detection');
+      return this.fallbackAnalysis(originalMessage);
+    }
+  }
+
+  /**
+   * Map intent string to ChatIntent enum
+   */
+  private mapIntentString(intentStr: string): ChatIntent {
+    const upperIntent = intentStr?.toUpperCase();
+    switch (upperIntent) {
+      case 'SEARCH':
+        return ChatIntent.SEARCH;
+      case 'RECOMMEND':
+        return ChatIntent.RECOMMEND;
+      case 'SUMMARIZE':
+        return ChatIntent.SUMMARIZE;
+      case 'DOCUMENT_QUESTION':
+        return ChatIntent.DOCUMENT_QUESTION;
+      default:
+        return ChatIntent.GENERAL;
+    }
+  }
+
+  /**
+   * Fallback analysis when AI parsing fails
+   */
+  private fallbackAnalysis(message: string): {
+    intent: ChatIntent;
+    documentId: string | null;
+    keywords: string[];
+    positionInList: number | null;
+    needsContext: boolean;
+  } {
+    const intent = this.detectIntent(message);
+    const documentId = this.extractDocumentId(message);
+    const keywords = this.extractSearchKeywords(message);
+    const positionInList = this.extractPositionInList(message);
+
+    return {
+      intent,
+      documentId,
+      keywords,
+      positionInList,
+      needsContext: intent !== ChatIntent.GENERAL,
+    };
+  }
+
+  /**
+   * Extract position in list from message (fallback method)
+   */
+  private extractPositionInList(message: string): number | null {
+    const lower = message.toLowerCase();
+
+    // Check for position keywords
+    if (lower.match(/đầu\s*tiên|thứ\s*nhất|cái\s*đầu|first/i)) {
+      return 1;
+    }
+    if (lower.match(/thứ\s*hai|thứ\s*2|second/i)) {
+      return 2;
+    }
+    if (lower.match(/thứ\s*ba|thứ\s*3|third/i)) {
+      return 3;
+    }
+
+    return null;
+  }
+
+  /**
+   * Detect intent from message (fallback method)
    */
   private detectIntent(message: string): ChatIntent {
     const lower = message.toLowerCase();
@@ -186,7 +352,76 @@ export class AiService {
   }
 
   /**
-   * Build context based on intent
+   * Build context from analysis result (after first AI call)
+   */
+  private async buildContextFromAnalysis(
+    intent: ChatIntent,
+    userId: string,
+    documentId: string | null,
+    keywords: string[],
+    positionInList: number | null = null
+  ): Promise<string> {
+    try {
+      switch (intent) {
+        case ChatIntent.SEARCH:
+          return await this.buildSearchContextWithKeywords(keywords);
+
+        case ChatIntent.RECOMMEND:
+          return await this.buildRecommendContext(userId);
+
+        case ChatIntent.DOCUMENT_QUESTION:
+        case ChatIntent.SUMMARIZE:
+          // If positionInList is specified but no documentId, search and get document at that position
+          if (!documentId && positionInList && keywords.length > 0) {
+            this.logger.log(`Getting document at position ${positionInList} from search results`);
+            return await this.buildContextForPositionInList(keywords, positionInList);
+          }
+
+          if (!documentId) {
+            return 'Vui lòng cung cấp ID tài liệu hoặc tìm kiếm trước (ví dụ: "Tóm tắt tài liệu abc-123-xyz" hoặc "Tìm tài liệu về SQL rồi tóm tắt cái đầu tiên")';
+          }
+          return await this.buildDocumentContext(documentId);
+
+        default:
+          return '';
+      }
+    } catch (error) {
+      this.logger.error(`Error building context:`, error);
+      return 'Đã xảy ra lỗi khi xử lý yêu cầu.';
+    }
+  }
+
+  /**
+   * Build context for document at specific position in search results
+   */
+  private async buildContextForPositionInList(
+    keywords: string[],
+    position: number
+  ): Promise<string> {
+    // Search documents
+    const documents = await this.documentsService.searchActiveDocumentsByKeywords(
+      keywords,
+      position + 2
+    );
+
+    if (documents.length === 0) {
+      return `Không tìm thấy tài liệu nào với từ khóa: "${keywords.join('", "')}"`;
+    }
+
+    if (position > documents.length) {
+      return `Chỉ tìm thấy ${documents.length} tài liệu, không có tài liệu thứ ${position}.`;
+    }
+
+    // Get document at specified position (1-based index)
+    const targetDoc = documents[position - 1];
+    this.logger.log(`Found document at position ${position}: ${targetDoc.title} (${targetDoc.id})`);
+
+    // Build full context for this document
+    return await this.buildDocumentContext(targetDoc.id);
+  }
+
+  /**
+   * Build context based on intent (legacy method for compatibility)
    */
   private async buildContext(
     intent: ChatIntent,
@@ -251,7 +486,28 @@ export class AiService {
   }
 
   /**
-   * Build search context with smart keyword extraction
+   * Build search context with keywords from AI analysis
+   */
+  private async buildSearchContextWithKeywords(keywords: string[]): Promise<string> {
+    if (!keywords || keywords.length === 0) {
+      return 'Vui lòng cung cấp từ khóa tìm kiếm cụ thể hơn.';
+    }
+
+    // Use DocumentsService to search active documents
+    const documents = await this.documentsService.searchActiveDocumentsByKeywords(keywords, 10);
+
+    if (documents.length === 0) {
+      return `Không tìm thấy tài liệu nào với từ khóa: "${keywords.join('", "')}"`;
+    }
+
+    return this.formatDocumentList(
+      `Kết quả tìm kiếm với từ khóa: "${keywords.join('", "')}"`,
+      documents
+    );
+  }
+
+  /**
+   * Build search context with smart keyword extraction (legacy)
    */
   private async buildSearchContext(query: string): Promise<string> {
     // Extract keywords from message
@@ -317,16 +573,27 @@ export class AiService {
       throw new NotFoundException('Không tìm thấy tài liệu');
     }
 
+    this.logger.log(`Building context for document: ${doc.title} (${doc.fileKey})`);
+
     let content = '';
     if (this.isProcessableFile(doc.fileKey)) {
       try {
+        this.logger.log(`Extracting text from file: ${doc.fileKey}`);
         content = await this.extractTextFromFile(doc.fileKey);
+        this.logger.log(`Successfully extracted ${content.length} characters from ${doc.fileKey}`);
+
+        if (!content || content.trim().length === 0) {
+          content =
+            '[File không có nội dung văn bản hoặc nội dung trống. File có thể là hình ảnh scan chưa OCR.]';
+        }
       } catch (error) {
-        this.logger.error(`Failed to extract content:`, error);
-        content = '[Không thể đọc nội dung file]';
+        this.logger.error(`Failed to extract content from ${doc.fileKey}:`, error);
+        content = `[Không thể đọc nội dung file. Lỗi: ${error.message || 'Unknown error'}]`;
       }
     } else {
-      content = '[File không hỗ trợ đọc tự động]';
+      const fileExt = doc.fileKey.split('.').pop()?.toUpperCase() || 'Unknown';
+      content = `[File định dạng ${fileExt} không hỗ trợ đọc tự động. Chỉ hỗ trợ PDF và DOCX.]`;
+      this.logger.warn(`File type not supported for extraction: ${doc.fileKey}`);
     }
 
     return `
@@ -368,17 +635,28 @@ ${idx + 1}. **${doc.title}**
    * Extract text from file
    */
   private async extractTextFromFile(fileKey: string): Promise<string> {
+    this.logger.log(`Downloading file from S3: ${fileKey}`);
     const fileBuffer = await this.s3Service.getFileBuffer(fileKey);
+    this.logger.log(`Downloaded ${fileBuffer.length} bytes`);
+
     let text = '';
 
     if (fileKey.toLowerCase().endsWith('.pdf')) {
-      // Fix: Sử dụng pdfParse.default nếu có, hoặc pdfParse trực tiếp
-      const pdfParser = (pdfParse as any).default || pdfParse;
-      const data = await pdfParser(fileBuffer);
-      text = data.text;
+      this.logger.log('Parsing PDF file...');
+      // Create a new PDFParse instance for each file
+      const pdfParser = new PDFParse({ data: fileBuffer });
+      const textResult = await pdfParser.getText();
+      text = textResult.text;
+      this.logger.log(`Extracted ${text.length} characters from PDF`);
     } else if (fileKey.toLowerCase().endsWith('.docx')) {
+      this.logger.log('Parsing DOCX file...');
       const result = await mammoth.extractRawText({ buffer: fileBuffer });
       text = result.value;
+      this.logger.log(`Extracted ${text.length} characters from DOCX`);
+    } else if (fileKey.toLowerCase().endsWith('.txt')) {
+      this.logger.log('Reading TXT file...');
+      text = fileBuffer.toString('utf-8');
+      this.logger.log(`Read ${text.length} characters from TXT`);
     } else {
       throw new BadRequestException('Loại file không được hỗ trợ');
     }
@@ -398,7 +676,7 @@ ${idx + 1}. **${doc.title}**
    */
   private isProcessableFile(fileKey: string): boolean {
     const ext = fileKey.toLowerCase();
-    return ext.endsWith('.pdf') || ext.endsWith('.docx');
+    return ext.endsWith('.pdf') || ext.endsWith('.docx') || ext.endsWith('.txt');
   }
 
   /**
