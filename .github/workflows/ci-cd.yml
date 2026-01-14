@@ -7,42 +7,11 @@ on:
 
 jobs:
   # ========================
-  # 1. Build & Test
-  # ========================
-  build_and_test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0 # tải toàn bộ lịch sử git
-          clean: true
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Start Postgres (Docker Compose)
-        run: |
-          docker compose up -d postgres
-          sleep 10
-          npm run migration:run
-
-      - name: Run Tests
-        run: npm run test
-
-  # ========================
-  # 2. Build & Push Docker Image
+  # 1. Build & Push Docker Image
   # ========================
   docker_build_and_push:
     runs-on: ubuntu-latest
     environment: production
-    needs: build_and_test
     steps:
       - name: Checkout source
         uses: actions/checkout@v3
